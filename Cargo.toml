@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "frontend",
+    "middleend",
+    "backend",
+    "console_comp",
+]
