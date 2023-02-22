@@ -2,6 +2,7 @@
 pub enum LexerError {
     UnexpectedCharacter(char),
     UnexpectedEof,
+    CharNotClosed,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
