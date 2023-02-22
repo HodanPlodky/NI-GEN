@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LexerError {
     UnexpectedCharacter(char),
+    UnexpectedEof,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
