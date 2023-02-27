@@ -26,6 +26,9 @@ pub enum Operator {
     And,
     Not,
     BitNot,
+    Mod,
+    ShiftLeft,
+    ShiftRight,
 }
 
 impl Into<TokenType> for Operator {
@@ -53,6 +56,7 @@ pub enum Keyword {
     Void,
     While,
     For,
+    Cast,
 }
 
 impl Into<TokenType> for Keyword {
@@ -73,6 +77,7 @@ impl FromStr for Keyword {
             "void" => Ok(Keyword::Void),
             "while" => Ok(Keyword::While),
             "for" => Ok(Keyword::For),
+            "cast" => Ok(Keyword::Cast),
             _ => Err(()),
         }
     }
@@ -92,7 +97,10 @@ pub enum TokenType {
     RightBrac,
     LeftCurly,
     RightCurly,
+    LeftSquare,
+    RightSquare,
     Semicol,
+    Comma,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,12 +108,13 @@ pub struct Token {
     row: usize,
     col: usize,
     file_name: String,
-    tok: TokenType,
+    pub tok: TokenType,
 }
 
 pub struct Lexer<'a> {
     row: usize,
     col: usize,
+    pub position: usize,
     file_name: String,
     input: Peekable<Chars<'a>>,
 }
@@ -115,9 +124,17 @@ impl<'a> Lexer<'a> {
         Self {
             row: 0,
             col: 0,
+            position : 0,
             file_name,
             input,
         }
+    }
+
+    pub fn reset_to(&mut self, position: usize) {
+        for _ in 0..(self.position - position) {
+            self.input.next_back();
+        }
+        self.position = position;
     }
 
     fn create_token(&self, tok_type: TokenType) -> Token {
@@ -145,7 +162,10 @@ impl<'a> Lexer<'a> {
 
     fn next_char(&mut self) -> Result<char, LexerError> {
         match self.input.next() {
-            Some(x) => Ok(x.clone()),
+            Some(x) => {
+                self.position += 1;
+                Ok(x.clone())
+            },
             None => Err(LexerError::UnexpectedEof),
         }
     }
@@ -157,12 +177,11 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn compare(&mut self, c : char) -> Result<(), LexerError> {
+    fn compare(&mut self, c: char) -> Result<(), LexerError> {
         if self.peek_char()? == c {
             let _ig = self.next_char();
             Ok(())
-        }
-        else {
+        } else {
             Err(LexerError::UnexpectedCharacter(self.peek_char()?))
         }
     }
@@ -181,6 +200,7 @@ impl<'a> Lexer<'a> {
 
         let res = match self.peek_char()? {
             '+' => self.double_op('+', Operator::Add.into(), Operator::Inc.into()),
+            '-' => self.double_op('-', Operator::Sub.into(), Operator::Dec.into()),
             '=' => self.double_op('=', Operator::Assign.into(), Operator::Eql.into()),
             '<' => self.double_op('=', Operator::Lt.into(), Operator::Le.into()),
             '>' => self.double_op('=', Operator::Gt.into(), Operator::Ge.into()),
@@ -189,12 +209,16 @@ impl<'a> Lexer<'a> {
             '!' => self.double_op('=', Operator::Not.into(), Operator::Neq.into()),
             '*' => Ok(self.create_token(single_char(Operator::Mul.into()))),
             '/' => Ok(self.create_token(single_char(Operator::Div.into()))),
+            '%' => Ok(self.create_token(single_char(Operator::Mod.into()))),
             '~' => Ok(self.create_token(single_char(Operator::BitNot.into()))),
             '(' => Ok(self.create_token(single_char(TokenType::LeftBrac))),
             ')' => Ok(self.create_token(single_char(TokenType::RightBrac))),
             '{' => Ok(self.create_token(single_char(TokenType::LeftCurly))),
             '}' => Ok(self.create_token(single_char(TokenType::RightCurly))),
+            '[' => Ok(self.create_token(single_char(TokenType::LeftSquare))),
+            ']' => Ok(self.create_token(single_char(TokenType::RightSquare))),
             ';' => Ok(self.create_token(single_char(TokenType::Semicol))),
+            ',' => Ok(self.create_token(single_char(TokenType::Comma))),
             c if c.is_alphabetic() || c == '_' => {
                 let ident = self.ident()?;
                 Ok(self.create_token(Self::check_keyword(ident)))
@@ -202,19 +226,6 @@ impl<'a> Lexer<'a> {
             c if c.is_digit(10) && c != '0' => {
                 let num = self.num()?;
                 Ok(self.create_token(TokenType::Int(num)))
-            }
-            '-' => {
-                let _ig = self.next_char();
-                if self.eof() {
-                    Ok(self.create_token(Operator::Sub.into()))
-                } else if self.peek_char()? == '-' {
-                    Ok(self.create_token(Operator::Dec.into()))
-                } else if self.peek_char()?.is_digit(10) {
-                    let num = self.num()?;
-                    Ok(self.create_token(TokenType::Int(-num)))
-                } else {
-                    Ok(self.create_token(Operator::Sub.into()))
-                }
             }
             '\'' => {
                 let c = self.char_tok()?;
@@ -290,8 +301,8 @@ mod tests {
             "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))}".to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
-        
-        let mut tokens : Vec<Token> = vec![];
+
+        let mut tokens: Vec<Token> = vec![];
         loop {
             let token = lex.get_token().unwrap();
             tokens.push(token);
@@ -299,7 +310,13 @@ mod tests {
                 break;
             }
         }
-        println!("{:?}", tokens.into_iter().map(|x| x.tok).collect::<Vec<TokenType>>());
+        println!(
+            "{:?}",
+            tokens
+                .into_iter()
+                .map(|x| x.tok)
+                .collect::<Vec<TokenType>>()
+        );
         assert!(false);
     }
 }
