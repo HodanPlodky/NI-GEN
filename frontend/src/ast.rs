@@ -37,6 +37,11 @@ pub enum Statement {
     Block(Vec<Statement>),
     If(Expr, Box<Statement>),
     IfElse(Expr, Box<Statement>, Box<Statement>),
+    For(Option<Box<Statement>>, Option<Expr>, Option<Expr>),
+    While(Expr, Box<Statement>),
+    Break,
+    Continue,
+    Return(Option<Box<Expr>>),
 }
 
 pub enum PrimType {
@@ -51,12 +56,12 @@ pub enum TypeDef {
 }
 
 pub struct FnDecl {
-    name: String,
-    params: Vec<(String, TypeDef)>,
-    ret_type: TypeDef,
+    pub name: String,
+    pub params: Vec<(String, TypeDef)>,
+    pub ret_type: TypeDef,
 }
 
 pub struct FnDef {
-    header: FnDecl,
-    body: Statement,
+    pub header: FnDecl,
+    pub body: Statement,
 }

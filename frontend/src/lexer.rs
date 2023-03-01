@@ -57,6 +57,9 @@ pub enum Keyword {
     While,
     For,
     Cast,
+    Break,
+    Conti,
+    Return,
 }
 
 impl Into<TokenType> for Keyword {
@@ -78,6 +81,8 @@ impl FromStr for Keyword {
             "while" => Ok(Keyword::While),
             "for" => Ok(Keyword::For),
             "cast" => Ok(Keyword::Cast),
+            "break" => Ok(Keyword::Break),
+            "continue" => Ok(Keyword::Conti),
             _ => Err(()),
         }
     }

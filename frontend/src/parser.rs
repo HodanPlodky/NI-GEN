@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, PrimType, Program, Statement, TypeDef, Val, VarDecl},
+    ast::{Expr, FnDecl, FnDef, PrimType, Program, Statement, TypeDef, Val, VarDecl},
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
 };
@@ -36,15 +36,157 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
+        //let mut vars = vec![];
+        //let mut fns = vec![];
+        
         todo!()
+    }
+
+    pub fn fn_decl(&mut self) -> Result<FnDef, FrontendError> {
+        let ret_type = self.type_parse()?;
+        let tmp = self.pop().tok;
+        let name = if let TokenType::Ident(x) = tmp {
+            Ok(x)
+        } else {
+            Err(ParserError::UnexpectedToken(tmp))
+        }?;
+
+        self.compare(TokenType::LeftBrac)?;
+        let mut params = vec![];
+
+        if self.top().tok != TokenType::RightBrac {
+            let t = self.type_parse()?;
+            let i = self.get_ident()?;
+            params.push((i, t));
+            while self.top().tok == TokenType::Comma {
+                let t = self.type_parse()?;
+                let i = self.get_ident()?;
+                params.push((i, t));
+            }
+        }
+
+        self.compare(TokenType::RightBrac)?;
+        let body = self.block_statement()?;
+
+        let header = FnDecl {
+            name,
+            params,
+            ret_type,
+        };
+
+        Ok(FnDef { header, body })
+    }
+
+    fn get_ident(&mut self) -> Result<String, FrontendError> {
+        let tmp = self.pop().tok;
+        if let TokenType::Ident(ident) = tmp {
+            Ok(ident)
+        } else {
+            Err(ParserError::UnexpectedToken(tmp).into())
+        }
     }
 
     fn statement(&mut self) -> Result<Statement, FrontendError> {
         match self.top().tok {
-            TokenType::Kw(T) => todo!(),
-            TokenType::LeftCurly => todo!(),
-            _ => todo!(),
+            TokenType::Kw(Keyword::If) => self.if_statement(),
+            TokenType::Kw(Keyword::While) => self.while_statement(),
+            TokenType::Kw(Keyword::For) => self.for_statement(),
+            TokenType::Kw(Keyword::Break) => {
+                self.pop();
+                self.compare(TokenType::Semicol)?;
+                Ok(Statement::Break)
+            }
+            TokenType::Kw(Keyword::Conti) => {
+                self.pop();
+                self.compare(TokenType::Semicol)?;
+                Ok(Statement::Continue)
+            }
+            TokenType::Kw(Keyword::Return) => {
+                self.pop();
+                let result = if self.top().tok != TokenType::Semicol {
+                    Statement::Return(Some(Box::new(self.expr()?)))
+                } else {
+                    Statement::Return(None)
+                };
+                self.compare(TokenType::Semicol)?;
+                Ok(result)
+            }
+            TokenType::LeftCurly => self.block_statement(),
+            _ => {
+                let res = self.expr_or_vars()?;
+                self.compare(TokenType::Semicol)?;
+                Ok(res)
+            }
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, FrontendError> {
+        self.compare(Keyword::If.into())?;
+        self.compare(TokenType::LeftBrac)?;
+        let cond = self.expr()?;
+        self.compare(TokenType::RightBrac)?;
+        let then = self.statement()?;
+        if self.top().tok == Keyword::Else.into() {
+            self.compare(Keyword::Else.into())?;
+            let else_b = self.statement()?;
+            Ok(Statement::IfElse(cond, Box::new(then), Box::new(else_b)))
+        } else {
+            Ok(Statement::If(cond, Box::new(then)))
+        }
+    }
+
+    fn while_statement(&mut self) -> Result<Statement, FrontendError> {
+        self.compare(Keyword::While.into())?;
+
+        self.compare(TokenType::LeftBrac)?;
+        let cond = self.expr()?;
+        self.compare(TokenType::RightBrac)?;
+
+        let body = self.statement()?;
+        Ok(Statement::While(cond, Box::new(body)))
+    }
+
+    fn for_statement(&mut self) -> Result<Statement, FrontendError> {
+        self.compare(Keyword::For.into())?;
+
+        self.compare(TokenType::LeftBrac)?;
+
+        let var = if self.top().tok != TokenType::Semicol {
+            Some(Box::new(self.expr_or_vars()?))
+        } else {
+            None
+        };
+        self.compare(TokenType::Semicol)?;
+
+        let cond = if self.top().tok != TokenType::Semicol {
+            Some(self.expr()?)
+        } else {
+            None
+        };
+        self.compare(TokenType::Semicol)?;
+
+        let end = if self.top().tok != TokenType::Semicol {
+            Some(self.expr()?)
+        } else {
+            None
+        };
+        self.compare(TokenType::RightBrac)?;
+
+        let body = self.statement()?;
+
+        Ok(Statement::For(var, cond, end))
+    }
+
+    fn block_statement(&mut self) -> Result<Statement, FrontendError> {
+        self.compare(TokenType::LeftCurly)?;
+        let mut statements = vec![];
+
+        while self.top().tok != TokenType::RightBrac {
+            statements.push(self.statement()?);
+        }
+        self.compare(TokenType::RightCurly)?;
+
+        Ok(Statement::Block(statements))
     }
 
     fn var_decl(&mut self) -> Result<Statement, FrontendError> {
