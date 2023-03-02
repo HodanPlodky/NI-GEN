@@ -83,6 +83,7 @@ impl FromStr for Keyword {
             "cast" => Ok(Keyword::Cast),
             "break" => Ok(Keyword::Break),
             "continue" => Ok(Keyword::Conti),
+            "return" => Ok(Keyword::Return),
             _ => Err(()),
         }
     }
@@ -112,74 +113,90 @@ pub enum TokenType {
 pub struct Token {
     row: usize,
     col: usize,
+    pub position: usize,
     file_name: String,
     pub tok: TokenType,
 }
 
-pub struct Lexer<'a> {
+#[derive(Default, Clone, Copy)]
+pub struct Loc {
     row: usize,
     col: usize,
-    pub position: usize,
-    file_name: String,
-    input: Peekable<Chars<'a>>,
+    position: usize,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(file_name: String, input: Peekable<Chars<'a>>) -> Self {
+pub struct Lexer {
+    act_loc: Loc,
+    last_loc: Loc,
+    file_name: String,
+    input: Vec<char>,
+}
+
+impl Lexer {
+    pub fn new(file_name: String, input: Peekable<Chars<'_>>) -> Self {
         Self {
-            row: 0,
-            col: 0,
-            position : 0,
+            act_loc : Loc::default(),
+            last_loc : Loc::default(),
             file_name,
-            input,
+            input: input.collect(),
         }
     }
 
     pub fn reset_to(&mut self, position: usize) {
-        for _ in 0..(self.position - position) {
-            self.input.next_back();
-        }
-        self.position = position;
+        self.act_loc.position = position;
+        self.last_loc.position = position;
     }
 
     fn create_token(&self, tok_type: TokenType) -> Token {
         Token {
-            row: self.row,
-            col: self.col,
+            row: self.last_loc.row,
+            col: self.last_loc.col,
+            position: self.last_loc.position,
             file_name: self.file_name.clone(),
             tok: tok_type,
         }
     }
 
     fn ignore_white(&mut self) -> Result<(), LexerError> {
-        while self.peek_char()?.is_whitespace() {
+        while let Ok(x) = self.peek_char() {
+            if !x.is_whitespace() {
+                break;
+            }
             self.next_char()?;
         }
         Ok(())
     }
 
     fn peek_char(&mut self) -> Result<char, LexerError> {
-        match self.input.peek() {
-            Some(x) => Ok(x.clone()),
-            None => Err(LexerError::UnexpectedEof),
+        if self.act_loc.position < self.input.len() {
+            Ok(self.input[self.act_loc.position].clone())
+        } else {
+            Err(LexerError::UnexpectedEof)
         }
     }
 
     fn next_char(&mut self) -> Result<char, LexerError> {
-        match self.input.next() {
-            Some(x) => {
-                self.position += 1;
-                Ok(x.clone())
-            },
-            None => Err(LexerError::UnexpectedEof),
+        //match self.input.next() {
+        //Some(x) => {
+        //self.position += 1;
+        //Ok(x.clone())
+        //}
+        //None => Err(LexerError::UnexpectedEof),
+        //}
+        if self.act_loc.position < self.input.len() {
+            self.act_loc.position += 1;
+            Ok(self.input[self.act_loc.position - 1].clone())
+        } else {
+            Err(LexerError::UnexpectedEof)
         }
     }
 
     fn eof(&mut self) -> bool {
-        match self.input.peek() {
-            Some(_) => false,
-            None => true,
-        }
+        //match self.input.peek() {
+        //Some(_) => false,
+        //None => true,
+        //}
+        self.act_loc.position >= self.input.len()
     }
 
     fn compare(&mut self, c: char) -> Result<(), LexerError> {
@@ -192,16 +209,19 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn get_token(&mut self) -> Result<Token, LexerError> {
+        self.ignore_white()?;
+        self.last_loc = self.act_loc.clone();
         if self.eof() {
             return Ok(self.create_token(TokenType::Eof));
         }
-        self.ignore_white()?;
         let mut next = false;
 
         let mut single_char = |t: TokenType| {
             next = true;
             t
         };
+
+        self.last_loc = self.act_loc.clone();
 
         let res = match self.peek_char()? {
             '+' => self.double_op('+', Operator::Add.into(), Operator::Inc.into()),
@@ -224,6 +244,7 @@ impl<'a> Lexer<'a> {
             ']' => Ok(self.create_token(single_char(TokenType::RightSquare))),
             ';' => Ok(self.create_token(single_char(TokenType::Semicol))),
             ',' => Ok(self.create_token(single_char(TokenType::Comma))),
+            '0' => Ok(self.create_token(single_char(TokenType::Int(0)))),
             c if c.is_alphabetic() || c == '_' => {
                 let ident = self.ident()?;
                 Ok(self.create_token(Self::check_keyword(ident)))
@@ -264,19 +285,33 @@ impl<'a> Lexer<'a> {
 
     fn ident(&mut self) -> Result<String, LexerError> {
         let mut res = "".to_string();
-        while self.peek_char()?.is_ident_char() {
+        while let Ok(x) = self.peek_char() {
+            if !x.is_ident_char() {
+                break;
+            }
             res += self.peek_char()?.to_string().as_str();
-            let _ig = self.next_char();
+            match self.next_char() {
+                Ok(_) => (),
+                Err(_) => break,
+            };
         }
         Ok(res)
     }
 
     pub fn num(&mut self) -> Result<i64, LexerError> {
         let mut res: i64 = 0;
-        while self.peek_char()?.is_digit(10) {
+        while let Ok(x) = self.peek_char() {
+            if !x.is_digit(10) {
+                break;
+            }
             res *= 10;
             res += self.peek_char()?.to_digit(10).unwrap() as i64;
-            let _ig = self.next_char();
+            match self.next_char() {
+                Ok(_) => (),
+                Err(_) => {
+                    break;
+                }
+            };
         }
         Ok(res)
     }
@@ -303,10 +338,72 @@ mod tests {
     #[test]
     fn lexer_test() {
         let input =
-            "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))}".to_string();
+            "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52".to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
 
+        let mut tokens: Vec<Token> = vec![];
+        loop {
+            let token = lex.get_token().unwrap();
+            tokens.push(token);
+            if tokens.last().unwrap().tok == TokenType::Eof {
+                break;
+            }
+        }
+        println!(
+            "{:?}",
+            tokens
+                .iter()
+                .map(|x| x.clone().tok)
+                .collect::<Vec<TokenType>>()
+        );
+
+        let correct: Vec<TokenType> = vec![
+            Keyword::Int.into(),
+            TokenType::Ident("main".to_string()),
+            TokenType::LeftBrac,
+            TokenType::RightBrac,
+            TokenType::LeftCurly,
+            Keyword::Int.into(),
+            TokenType::Ident("x".to_string()),
+            Operator::Assign.into(),
+            TokenType::Int(1),
+            Operator::Add.into(),
+            TokenType::Int(33),
+            TokenType::Semicol,
+            Operator::Sub.into(),
+            TokenType::Int(1),
+            TokenType::Semicol,
+            TokenType::Char('a'),
+            Keyword::If.into(),
+            Keyword::Else.into(),
+            Keyword::While.into(),
+            Keyword::Char.into(),
+            TokenType::LeftBrac,
+            TokenType::LeftBrac,
+            TokenType::Ident("_a".to_string()),
+            Operator::Sub.into(),
+            TokenType::Int(52),
+            TokenType::RightBrac,
+            TokenType::RightBrac,
+            TokenType::RightCurly,
+            TokenType::Int(52),
+            TokenType::Eof,
+        ];
+        assert_eq!(
+            tokens
+                .into_iter()
+                .map(|x| x.tok)
+                .collect::<Vec<TokenType>>(),
+            correct
+        );
+    }
+
+    #[test]
+    fn tmp() {
+        let input = "52".to_string();
+
+        let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
         let mut tokens: Vec<Token> = vec![];
         loop {
             let token = lex.get_token().unwrap();
@@ -322,6 +419,27 @@ mod tests {
                 .map(|x| x.tok)
                 .collect::<Vec<TokenType>>()
         );
-        assert!(false);
+    }
+
+    #[test]
+    fn test_reset() {
+        let input = "52".to_string();
+
+        let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
+        let mut tokens: Vec<Token> = vec![];
+        loop {
+            let token = lex.get_token().unwrap();
+            tokens.push(token);
+            if tokens.last().unwrap().tok == TokenType::Eof {
+                break;
+            }
+        }
+        println!(
+            "{:?}",
+            tokens
+                .into_iter()
+                .map(|x| x.tok)
+                .collect::<Vec<TokenType>>()
+        );
     }
 }

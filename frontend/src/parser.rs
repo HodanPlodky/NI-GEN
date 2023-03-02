@@ -4,16 +4,22 @@ use crate::{
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
 };
 
-pub struct Parser<'a> {
-    lexer: Lexer<'a>,
+pub struct Parser {
+    lexer: Lexer,
     curr_tok: Token,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>) -> Result<Self, FrontendError> {
+impl Parser {
+    pub fn new(lexer: Lexer) -> Result<Self, FrontendError> {
         let mut lexer = lexer;
         let curr_tok = lexer.get_token()?;
         Ok(Self { lexer, curr_tok })
+    }
+
+    fn reset_to(&mut self, position : usize) -> Result<(), FrontendError> {
+        self.lexer.reset_to(position);
+        self.curr_tok = self.lexer.get_token()?;
+        Ok(())
     }
 
     fn top(&self) -> Token {
@@ -40,19 +46,19 @@ impl<'a> Parser<'a> {
         let mut fns = vec![];
 
         while self.top().tok != TokenType::Eof {
-            let position = self.lexer.position;
+            let position = self.top().position;
             let try_fn = self.fn_decl();
             match try_fn {
                 Ok(fn_def) => fns.push(fn_def),
                 Err(_) => {
-                    self.lexer.reset_to(position);
+                    self.reset_to(position)?;
                     vars.push(self.var_decl()?);
+                    self.compare(TokenType::Semicol)?;
                 }
             };
         }
 
-        //let main_fn = fns.iter().find(|x| x.header.name == "main").copied();
-        let main_fn = None;
+        let main_fn = fns.iter().find(|x| x.header.name == "main").cloned();
         let fns = fns
             .into_iter()
             .filter(|x| x.header.name != "main")
@@ -198,14 +204,14 @@ impl<'a> Parser<'a> {
 
         let body = self.statement()?;
 
-        Ok(Statement::For(var, cond, end))
+        Ok(Statement::For(var, cond, end, Box::new(body)))
     }
 
     fn block_statement(&mut self) -> Result<Statement, FrontendError> {
         self.compare(TokenType::LeftCurly)?;
         let mut statements = vec![];
 
-        while self.top().tok != TokenType::RightBrac {
+        while self.top().tok != TokenType::RightCurly {
             statements.push(self.statement()?);
         }
         self.compare(TokenType::RightCurly)?;
@@ -235,9 +241,9 @@ impl<'a> Parser<'a> {
     }
 
     fn expr_or_vars(&mut self) -> Result<Statement, FrontendError> {
-        let p = self.lexer.position;
+        let p = self.top().position;
         let t = self.type_parse();
-        self.lexer.reset_to(p);
+        self.reset_to(p)?;
         match t {
             Ok(_) => Ok(Statement::VarDecl(self.var_decl()?)),
             Err(_) => Ok(Statement::Expr(self.expr()?)),
@@ -356,7 +362,7 @@ impl<'a> Parser<'a> {
     }
 
     fn e1(&mut self) -> Result<Expr, FrontendError> {
-        let mut result = self.e7()?;
+        let mut result = self.e_unary_pre()?;
         while self.top().tok == Operator::Mul.into()
             || self.top().tok == Operator::Div.into()
             || self.top().tok == Operator::Mod.into()
@@ -374,9 +380,9 @@ impl<'a> Parser<'a> {
         let t = self.top().tok;
         if let TokenType::Operator(o) = t {
             self.pop();
-            self.e_unary_pre_inner(o);
+            self.e_unary_pre_inner(o)?;
         }
-        todo!()
+        self.e_post()
     }
 
     fn e_unary_pre_inner(&mut self, operator: Operator) -> Result<Expr, FrontendError> {
@@ -467,9 +473,65 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test_expr() {}
+    use super::*;
+
+    fn expr_boiler(input: &str, correct: Expr) {
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.expr();
+        assert!(res.is_ok());
+        let res = res.unwrap();
+        
+        println!("{:?}", res);
+
+        assert_eq!(res, correct);
+    }
 
     #[test]
-    fn basic_program() {}
+    fn test_expr() {
+        expr_boiler(
+            "1  + 2",
+            Expr::BinOp(
+                Operator::Add,
+                Box::new(Expr::Value(Val::Integer(1))),
+                Box::new(Expr::Value(Val::Integer(2))),
+            ),
+        );
+
+        expr_boiler(
+            " 145  * a  ",
+            Expr::BinOp(
+                Operator::Mul,
+                Box::new(Expr::Value(Val::Integer(145))),
+                Box::new(Expr::Ident("a".to_string())),
+            ),
+        );
+    }
+
+    #[test]
+    fn basic_program() {
+        let input = "
+            char f() {
+                return 'a';
+            }
+
+            int main() {
+                int a = 1 + 2;
+                if (a > 0) {
+                    a = 100;
+                    return 1045;
+                }
+                else {
+                    a = 1000;
+                }
+                return a;
+            }
+        ";
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.parse();
+        println!("{:?}", res);
+        assert!(res.is_ok());
+        assert!(false);
+    }
 }
