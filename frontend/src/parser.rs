@@ -36,10 +36,34 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
-        //let mut vars = vec![];
-        //let mut fns = vec![];
-        
-        todo!()
+        let mut vars = vec![];
+        let mut fns = vec![];
+
+        while self.top().tok != TokenType::Eof {
+            let position = self.lexer.position;
+            let try_fn = self.fn_decl();
+            match try_fn {
+                Ok(fn_def) => fns.push(fn_def),
+                Err(_) => {
+                    self.lexer.reset_to(position);
+                    vars.push(self.var_decl()?);
+                }
+            };
+        }
+
+        //let main_fn = fns.iter().find(|x| x.header.name == "main").copied();
+        let main_fn = None;
+        let fns = fns
+            .into_iter()
+            .filter(|x| x.header.name != "main")
+            .collect();
+
+        Ok(Program {
+            var_decls: vars,
+            fn_defs: fns,
+            fn_decl: vec![],
+            main: main_fn,
+        })
     }
 
     pub fn fn_decl(&mut self) -> Result<FnDef, FrontendError> {
@@ -189,7 +213,7 @@ impl<'a> Parser<'a> {
         Ok(Statement::Block(statements))
     }
 
-    fn var_decl(&mut self) -> Result<Statement, FrontendError> {
+    fn var_decl(&mut self) -> Result<VarDecl, FrontendError> {
         let var_type = self.type_parse()?;
         if let TokenType::Ident(name) = self.top().tok {
             self.pop();
@@ -204,7 +228,7 @@ impl<'a> Parser<'a> {
                 var_type,
                 init_val,
             };
-            Ok(Statement::VarDecl(result))
+            Ok(result)
         } else {
             Err(ParserError::VarDeclInvalidName.into())
         }
@@ -215,7 +239,7 @@ impl<'a> Parser<'a> {
         let t = self.type_parse();
         self.lexer.reset_to(p);
         match t {
-            Ok(_) => self.var_decl(),
+            Ok(_) => Ok(Statement::VarDecl(self.var_decl()?)),
             Err(_) => Ok(Statement::Expr(self.expr()?)),
         }
     }
@@ -439,4 +463,13 @@ impl<'a> Parser<'a> {
 
         Ok(t)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_expr() {}
+
+    #[test]
+    fn basic_program() {}
 }

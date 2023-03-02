@@ -6,10 +6,10 @@ pub enum Val {
 }
 
 pub struct Program {
-    var_decls: Vec<VarDecl>,
-    fn_defs: Vec<FnDef>,
-    fn_decl: Vec<FnDecl>,
-    main: FnDef,
+    pub var_decls: Vec<VarDecl>,
+    pub fn_defs: Vec<FnDef>,
+    pub fn_decl: Vec<FnDecl>,
+    pub main: Option<FnDef>,
 }
 
 pub enum Expr {
