@@ -532,6 +532,15 @@ mod tests {
         let res = parser.parse();
         println!("{:?}", res);
         assert!(res.is_ok());
-        assert!(false);
+    }
+
+    #[test]
+    fn wrong_program() {
+        let input = "foo haha bubu";
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.parse();
+        println!("{:?}", res);
+        assert!(res.is_err());
     }
 }
