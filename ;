@@ -1,7 +1,6 @@
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, PrimType, Program,
-        Statement, TypeDef, Val, VarDecl, VarDeclType, StatementType,
+        AstData, AstNode, Expr, FnDecl, FnDef, PrimType, Program, Statement, TypeDef, Val, VarDecl,
     },
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
@@ -12,6 +11,7 @@ pub struct Parser {
     curr_tok: Token,
 }
 
+type Ast = Result<AstNode, FrontendError>;
 impl Parser {
     pub fn new(lexer: Lexer) -> Result<Self, FrontendError> {
         let mut lexer = lexer;
@@ -42,10 +42,6 @@ impl Parser {
         } else {
             Ok(())
         }
-    }
-
-    fn act_data(&self) -> AstData {
-        AstData::new(self.top().loc())
     }
 
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
@@ -79,8 +75,8 @@ impl Parser {
         })
     }
 
-    pub fn fn_decl(&mut self) -> Result<FnDef, FrontendError> {
-        let data = self.act_data();
+    pub fn fn_decl(&mut self) -> Ast {
+        let loc = self.top().loc();
         let ret_type = self.type_parse()?;
         let tmp = self.pop().tok;
         let name = if let TokenType::Ident(x) = tmp {
@@ -106,15 +102,13 @@ impl Parser {
         self.compare(TokenType::RightBrac)?;
         let body = self.block_statement()?;
 
-        let header = FnDeclType {
+        let header = FnDecl {
             name,
             params,
             ret_type,
         };
 
-        let header = FnDecl::new(header, data.clone());
-
-        Ok(FnDef::new(FnDefType { header, body }, data))
+        Ok(AstNode::new(AstData::FnDef(FnDef { header, body }), loc))
     }
 
     fn get_ident(&mut self) -> Result<String, FrontendError> {
@@ -126,31 +120,31 @@ impl Parser {
         }
     }
 
-    fn statement(&mut self) -> Result<Statement, FrontendError> {
-        let data = self.act_data();
-        match self.top().tok {
+    fn statement(&mut self) -> Ast {
+        let loc = self.top().loc();
+        let data = match self.top().tok {
             TokenType::Kw(Keyword::If) => self.if_statement(),
             TokenType::Kw(Keyword::While) => self.while_statement(),
             TokenType::Kw(Keyword::For) => self.for_statement(),
             TokenType::Kw(Keyword::Break) => {
                 self.pop();
                 self.compare(TokenType::Semicol)?;
-                Ok(Statement::new(StatementType::Break, data))
+                Ok(Statement::Break)
             }
             TokenType::Kw(Keyword::Conti) => {
                 self.pop();
                 self.compare(TokenType::Semicol)?;
-                Ok(Statement::new(StatementType::Continue, data))
+                Ok(Statement::Continue)
             }
             TokenType::Kw(Keyword::Return) => {
                 self.pop();
                 let result = if self.top().tok != TokenType::Semicol {
-                    StatementType::Return(Some(Box::new(self.expr()?)))
+                    Statement::Return(Some(Box::new(self.expr()?)))
                 } else {
-                    StatementType::Return(None)
+                    Statement::Return(None)
                 };
                 self.compare(TokenType::Semicol)?;
-                Ok(Statement::new(result, data))
+                Ok(result)
             }
             TokenType::LeftCurly => self.block_statement(),
             _ => {
@@ -158,28 +152,29 @@ impl Parser {
                 self.compare(TokenType::Semicol)?;
                 Ok(res)
             }
-        }
+        }?;
+
+        Ok(AstNode::new(data, loc))
     }
 
-    fn if_statement(&mut self) -> Result<Statement, FrontendError> {
-        let data = self.act_data();
+    fn if_statement(&mut self) -> Ast {
+        let loc = self.top().loc();
         self.compare(Keyword::If.into())?;
         self.compare(TokenType::LeftBrac)?;
         let cond = self.expr()?;
         self.compare(TokenType::RightBrac)?;
         let then = self.statement()?;
-        let value = if self.top().tok == Keyword::Else.into() {
+        let data = if self.top().tok == Keyword::Else.into() {
             self.compare(Keyword::Else.into())?;
             let else_b = self.statement()?;
-            StatementType::IfElse(cond, Box::new(then), Box::new(else_b))
+            Ok(Statement::IfElse(cond, Box::new(then), Box::new(else_b)))
         } else {
-            StatementType::If(cond, Box::new(then))
-        };
-        Ok(Statement::new(value, data))
+            Ok(Statement::If(cond, Box::new(then)))
+        }?;
+        Ok(AstNode::new(data, loc))
     }
 
     fn while_statement(&mut self) -> Result<Statement, FrontendError> {
-        let data = self.act_data();
         self.compare(Keyword::While.into())?;
 
         self.compare(TokenType::LeftBrac)?;
@@ -187,11 +182,10 @@ impl Parser {
         self.compare(TokenType::RightBrac)?;
 
         let body = self.statement()?;
-        Ok(Statement::new(StatementType::While(cond, Box::new(body)), data))
+        Ok(Statement::While(cond, Box::new(body)))
     }
 
     fn for_statement(&mut self) -> Result<Statement, FrontendError> {
-        let data = self.act_data();
         self.compare(Keyword::For.into())?;
 
         self.compare(TokenType::LeftBrac)?;
@@ -219,11 +213,10 @@ impl Parser {
 
         let body = self.statement()?;
 
-        Ok(Statement::new(StatementType::For(var, cond, end, Box::new(body)), data))
+        Ok(Statement::For(var, cond, end, Box::new(body)))
     }
 
     fn block_statement(&mut self) -> Result<Statement, FrontendError> {
-        let data = self.act_data();
         self.compare(TokenType::LeftCurly)?;
         let mut statements = vec![];
 
@@ -232,11 +225,10 @@ impl Parser {
         }
         self.compare(TokenType::RightCurly)?;
 
-        Ok(Statement::new(StatementType::Block(statements), data))
+        Ok(Statement::Block(statements))
     }
 
     fn var_decl(&mut self) -> Result<VarDecl, FrontendError> {
-        let data = self.act_data();
         let var_type = self.type_parse()?;
         if let TokenType::Ident(name) = self.top().tok {
             self.pop();
@@ -246,12 +238,12 @@ impl Parser {
             } else {
                 None
             };
-            let result = VarDeclType {
+            let result = VarDecl {
                 name,
                 var_type,
                 init_val,
             };
-            Ok(VarDecl::new(result, data))
+            Ok(result)
         } else {
             Err(ParserError::VarDeclInvalidName.into())
         }
@@ -262,20 +254,16 @@ impl Parser {
         let t = self.type_parse();
         self.reset_to(p)?;
         match t {
-            Ok(_) => Ok(self.var_decl()?.into()),
-            Err(_) => Ok(self.expr()?.into()),
+            Ok(_) => Ok(Statement::VarDecl(self.var_decl()?)),
+            Err(_) => Ok(Statement::Expr(self.expr()?)),
         }
     }
 
     fn expr(&mut self) -> Result<Expr, FrontendError> {
         let mut e = self.e9()?;
         if self.top().tok == Operator::Assign.into() {
-            let data = self.act_data();
             self.pop();
-            e = Expr::new(
-                ExprType::BinOp(Operator::Assign, Box::new(e), Box::new(self.expr()?)),
-                data,
-            );
+            e = Expr::BinOp(Operator::Assign, Box::new(e), Box::new(self.expr()?));
         }
         Ok(e)
     }
@@ -283,12 +271,8 @@ impl Parser {
     fn e9(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e8()?;
         while self.top().tok == Operator::Or.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e8()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e8()?))
             } else {
                 unreachable!();
             }
@@ -299,12 +283,8 @@ impl Parser {
     fn e8(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e7()?;
         while self.top().tok == Operator::And.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e7()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e7()?))
             } else {
                 unreachable!();
             }
@@ -315,12 +295,8 @@ impl Parser {
     fn e7(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e6()?;
         while self.top().tok == Operator::BitOr.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e6()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e6()?))
             } else {
                 unreachable!();
             }
@@ -331,12 +307,8 @@ impl Parser {
     fn e6(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e5()?;
         while self.top().tok == Operator::BitAnd.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e5()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e5()?))
             } else {
                 unreachable!();
             }
@@ -347,12 +319,8 @@ impl Parser {
     fn e5(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e4()?;
         while self.top().tok == Operator::Eql.into() || self.top().tok == Operator::Neq.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e4()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e4()?))
             } else {
                 unreachable!();
             }
@@ -367,12 +335,8 @@ impl Parser {
             || self.top().tok == Operator::Gt.into()
             || self.top().tok == Operator::Ge.into()
         {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e3()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e3()?))
             } else {
                 unreachable!();
             }
@@ -385,12 +349,8 @@ impl Parser {
         while self.top().tok == Operator::ShiftLeft.into()
             || self.top().tok == Operator::ShiftRight.into()
         {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e2()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e2()?))
             } else {
                 unreachable!();
             }
@@ -401,12 +361,8 @@ impl Parser {
     fn e2(&mut self) -> Result<Expr, FrontendError> {
         let mut result = self.e1()?;
         while self.top().tok == Operator::Add.into() || self.top().tok == Operator::Sub.into() {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e1()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e1()?))
             } else {
                 unreachable!();
             }
@@ -420,12 +376,8 @@ impl Parser {
             || self.top().tok == Operator::Div.into()
             || self.top().tok == Operator::Mod.into()
         {
-            let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
-                result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e7()?)),
-                    data,
-                );
+                result = Expr::BinOp(o, Box::new(result), Box::new(self.e7()?))
             } else {
                 unreachable!();
             }
@@ -443,25 +395,15 @@ impl Parser {
     }
 
     fn e_unary_pre_inner(&mut self, operator: Operator) -> Result<Expr, FrontendError> {
-        let data = self.act_data();
         match operator {
             Operator::Add
             | Operator::Sub
             | Operator::Inc
             | Operator::Dec
             | Operator::Not
-            | Operator::BitNot => Ok(Expr::new(
-                ExprType::UnaryPreOp(operator, Box::new(self.e_unary_pre()?)),
-                data,
-            )),
-            Operator::Mul => Ok(Expr::new(
-                ExprType::Deref(Box::new(self.e_unary_pre()?)),
-                data,
-            )),
-            Operator::BitAnd => Ok(Expr::new(
-                ExprType::Address(Box::new(self.e_unary_pre()?)),
-                data,
-            )),
+            | Operator::BitNot => Ok(Expr::UnaryPreOp(operator, Box::new(self.e_unary_pre()?))),
+            Operator::Mul => Ok(Expr::Deref(Box::new(self.e_unary_pre()?))),
+            Operator::BitAnd => Ok(Expr::Address(Box::new(self.e_unary_pre()?))),
             _ => self.e_post(),
         }
     }
@@ -470,11 +412,10 @@ impl Parser {
         let mut result = self.f()?;
 
         loop {
-            let data = self.act_data();
             match self.top().tok {
                 TokenType::Operator(o) if o == Operator::Inc || o == Operator::Dec => {
                     self.pop();
-                    result = Expr::new(ExprType::UnaryPostOp(o, Box::new(result)), data);
+                    result = Expr::UnaryPostOp(o, Box::new(result));
                 }
                 TokenType::LeftBrac => {
                     let mut args = vec![];
@@ -485,14 +426,11 @@ impl Parser {
                             args.push(self.expr()?);
                         }
                     }
-                    result = Expr::new(ExprType::Call(Box::new(result), args), data);
+                    result = Expr::Call(Box::new(result), args);
                 }
                 TokenType::LeftSquare => {
                     self.pop();
-                    result = Expr::new(
-                        ExprType::Index(Box::new(result), Box::new(self.expr()?)),
-                        data,
-                    );
+                    result = Expr::Index(Box::new(result), Box::new(self.expr()?));
                     self.compare(TokenType::RightSquare)?;
                 }
                 _ => break,
@@ -503,11 +441,10 @@ impl Parser {
     }
 
     fn f(&mut self) -> Result<Expr, FrontendError> {
-        let data = self.act_data();
         match self.pop().tok {
-            TokenType::Ident(name) => Ok(Expr::new(ExprType::Ident(name), data)),
-            TokenType::Int(num) => Ok(Expr::new(ExprType::Value(Val::Integer(num)), data)),
-            TokenType::Char(c) => Ok(Expr::new(ExprType::Value(Val::Char(c)), data)),
+            TokenType::Ident(name) => Ok(Expr::Ident(name)),
+            TokenType::Int(num) => Ok(Expr::Value(Val::Integer(num))),
+            TokenType::Char(c) => Ok(Expr::Value(Val::Char(c))),
             TokenType::LeftBrac => {
                 let e = self.expr()?;
                 self.compare(TokenType::RightBrac)?;
@@ -520,7 +457,7 @@ impl Parser {
                 self.compare(TokenType::LeftBrac)?;
                 let e = self.expr()?;
                 self.compare(TokenType::RightBrac)?;
-                Ok(Expr::new(ExprType::Cast(t, Box::new(e)), data))
+                Ok(Expr::Cast(t, Box::new(e)))
             }
             t => Err(ParserError::UnexpectedToken(t).into()),
         }
@@ -546,39 +483,39 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    //
-    //fn expr_boiler(input: &str, correct: Expr) {
-    //let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
-    //let mut parser = Parser::new(lex).unwrap();
-    //let res = parser.expr();
-    //assert!(res.is_ok());
-    //let res = res.unwrap();
-    //
-    //println!("{:?}", res);
-    //
-    //assert_eq!(res, correct);
-    //}
-    //
-    //#[test]
-    //fn test_expr() {
-    //expr_boiler(
-    //"1  + 2",
-    //Expr::BinOp(
-    //Operator::Add,
-    //Box::new(Expr::Value(Val::Integer(1))),
-    //Box::new(Expr::Value(Val::Integer(2))),
-    //),
-    //);
-    //
-    //expr_boiler(
-    //" 145  * a  ",
-    //Expr::BinOp(
-    //Operator::Mul,
-    //Box::new(Expr::Value(Val::Integer(145))),
-    //Box::new(Expr::Ident("a".to_string())),
-    //),
-    //);
-    //}
+
+    fn expr_boiler(input: &str, correct: Expr) {
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.expr();
+        assert!(res.is_ok());
+        let res = res.unwrap();
+
+        println!("{:?}", res);
+
+        assert_eq!(res, correct);
+    }
+
+    #[test]
+    fn test_expr() {
+        expr_boiler(
+            "1  + 2",
+            Expr::BinOp(
+                Operator::Add,
+                Box::new(Expr::Value(Val::Integer(1))),
+                Box::new(Expr::Value(Val::Integer(2))),
+            ),
+        );
+
+        expr_boiler(
+            " 145  * a  ",
+            Expr::BinOp(
+                Operator::Mul,
+                Box::new(Expr::Value(Val::Integer(145))),
+                Box::new(Expr::Ident("a".to_string())),
+            ),
+        );
+    }
 
     #[test]
     fn basic_program() {

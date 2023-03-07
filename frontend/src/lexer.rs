@@ -118,7 +118,17 @@ pub struct Token {
     pub tok: TokenType,
 }
 
-#[derive(Default, Clone, Copy)]
+impl Token {
+    pub fn loc(&self) -> Loc {
+        Loc {
+            row: self.row,
+            col: self.col,
+            position: self.position,
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Loc {
     row: usize,
     col: usize,
@@ -135,8 +145,8 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(file_name: String, input: Peekable<Chars<'_>>) -> Self {
         Self {
-            act_loc : Loc::default(),
-            last_loc : Loc::default(),
+            act_loc: Loc::default(),
+            last_loc: Loc::default(),
             file_name,
             input: input.collect(),
         }

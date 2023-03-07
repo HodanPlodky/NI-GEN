@@ -1,4 +1,81 @@
-use crate::lexer::Operator;
+use std::ops::{Deref, DerefMut};
+
+use crate::lexer::{Loc, Operator};
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct AstData {
+    loc: Loc,
+    pub node_type: Option<TypeDef>,
+}
+
+impl AstData {
+    pub fn new(loc: Loc) -> Self {
+        Self {
+            loc,
+            node_type: None,
+        }
+    }
+
+    pub fn set_type(&mut self, t: TypeDef) -> TypeDef {
+        self.node_type = Some(t.clone());
+        t
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct AstNode<T>
+where
+    T: PartialEq + Eq + Clone,
+{
+    pub value: T,
+    pub data: AstData,
+}
+
+impl<T> AstNode<T>
+where
+    T: PartialEq + Eq + Clone,
+{
+    pub fn new(value: T, data: AstData) -> Self {
+        Self { value, data }
+    }
+
+    pub fn set_type(&mut self, t: TypeDef) -> TypeDef {
+        self.data.set_type(t)
+    }
+
+    pub fn loc(&self) -> Loc {
+        self.data.loc
+    }
+
+    pub fn typed(&self, t: TypeDef) -> Self {
+        let mut data = self.data.clone();
+        data.set_type(t);
+        Self {
+            value: self.value.clone(),
+            data,
+        }
+    }
+}
+
+impl<T> Deref for AstNode<T>
+where
+    T: PartialEq + Eq + Clone,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> DerefMut for AstNode<T>
+where
+    T: PartialEq + Eq + Clone,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Val {
@@ -14,8 +91,17 @@ pub struct Program {
     pub main: Option<FnDef>,
 }
 
+pub type Expr = AstNode<ExprType>;
+
+impl Into<Statement> for Expr {
+    fn into(self) -> Statement {
+        let data = self.data.clone();
+        Statement::new(StatementType::Expr(self), data)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Expr {
+pub enum ExprType {
     BinOp(Operator, Box<Expr>, Box<Expr>),
     UnaryPreOp(Operator, Box<Expr>),
     UnaryPostOp(Operator, Box<Expr>),
@@ -28,21 +114,37 @@ pub enum Expr {
     Cast(TypeDef, Box<Expr>),
 }
 
+pub type VarDecl = AstNode<VarDeclType>;
+
+impl Into<Statement> for VarDecl {
+    fn into(self) -> Statement {
+        let data = self.data.clone();
+        Statement::new(StatementType::VarDecl(self), data)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct VarDecl {
+pub struct VarDeclType {
     pub name: String,
     pub var_type: TypeDef,
     pub init_val: Option<Expr>,
 }
 
+pub type Statement = AstNode<StatementType>;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Statement {
+pub enum StatementType {
     Expr(Expr),
     VarDecl(VarDecl),
     Block(Vec<Statement>),
     If(Expr, Box<Statement>),
     IfElse(Expr, Box<Statement>, Box<Statement>),
-    For(Option<Box<Statement>>, Option<Expr>, Option<Expr>, Box<Statement>),
+    For(
+        Option<Box<Statement>>,
+        Option<Expr>,
+        Option<Expr>,
+        Box<Statement>,
+    ),
     While(Expr, Box<Statement>),
     Break,
     Continue,
@@ -62,15 +164,19 @@ pub enum TypeDef {
     PointerType(Box<TypeDef>),
 }
 
+pub type FnDecl = AstNode<FnDeclType>;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct FnDecl {
+pub struct FnDeclType {
     pub name: String,
     pub params: Vec<(String, TypeDef)>,
     pub ret_type: TypeDef,
 }
 
+pub type FnDef = AstNode<FnDefType>;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct FnDef {
+pub struct FnDefType {
     pub header: FnDecl,
     pub body: Statement,
 }
