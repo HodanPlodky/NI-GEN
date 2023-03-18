@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        AstNode, Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
-        StatementType, TypeDef, Val, VarDecl, VarDeclType,
+        Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
+        StatementType, TypeDef, Val, VarDecl, VarDeclType, AstData,
     },
     errors::{FrontendError, TypeError},
+    lexer::Operator,
 };
 
 struct EnvLevel {
@@ -31,14 +32,14 @@ impl EnvLevel {
 }
 
 pub struct TypeData {
-    type_map: HashMap<String, TypeDef>,
+    //type_map: HashMap<String, TypeDef>,
     env: Vec<EnvLevel>,
 }
 
 impl Default for TypeData {
     fn default() -> Self {
         Self {
-            type_map: HashMap::new(),
+            //type_map: HashMap::new(),
             env: vec![EnvLevel::new(None)],
         }
     }
@@ -81,8 +82,6 @@ impl TypeData {
     }
 }
 
-type Typed = Result<TypeDef, FrontendError>;
-
 trait TypecheckAst<T>
 where
     T: PartialEq + Eq + Clone,
@@ -90,12 +89,103 @@ where
     fn typecheck(&self, data: &mut TypeData) -> Result<T, FrontendError>;
 }
 
+fn unary_op(
+    op: Operator,
+    expr: Box<Expr>,
+    data: &mut TypeData,
+) -> Result<(Expr, TypeDef), FrontendError> {
+    let expr = expr.typecheck(data)?;
+    let t = match (op, expr.get_type()) {
+        (Operator::Not, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
+        (_, TypeDef::PrimType(t)) => t.into(),
+        (_, TypeDef::PointerType(t)) => TypeDef::PointerType(t),
+        _ => return Err(TypeError::InvalidOperation(op).into()),
+    };
+
+    Ok((expr, t))
+}
+
+fn binary_op(
+    op: Operator,
+    left: Box<Expr>,
+    right: Box<Expr>,
+    data: &mut TypeData,
+    ast_data : AstData,
+) -> Result<Expr, FrontendError> {
+    let left = left.typecheck(data)?;
+    let right = right.typecheck(data)?;
+    if left.get_type() != right.get_type() {
+        return Err(TypeError::BinaryTypeMissmatch(left.get_type(), right.get_type()).into());
+    }
+
+    if let TypeDef::Function(_) = left.get_type() {
+        return Err(TypeError::BinaryOperatorError.into());
+    }
+
+    let t: TypeDef = match (op, left.get_type()) {
+        (Operator::Add, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Add, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Sub, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Sub, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Mul, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Mul, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Div, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Div, TypeDef::PointerType(_)) => todo!(),
+        (
+            Operator::Lt
+            | Operator::Le
+            | Operator::Gt
+            | Operator::Ge
+            | Operator::Eql
+            | Operator::Neq,
+            _,
+        ) => PrimType::Int.into(),
+        (Operator::Assign, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Assign, TypeDef::PointerType(_)) => todo!(),
+        (Operator::BitOr, TypeDef::PrimType(_)) => todo!(),
+        (Operator::BitOr, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Or, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Or, TypeDef::PointerType(_)) => todo!(),
+        (Operator::BitAnd, TypeDef::PrimType(_)) => todo!(),
+        (Operator::BitAnd, TypeDef::PointerType(_)) => todo!(),
+        (Operator::And, TypeDef::PrimType(_)) => todo!(),
+        (Operator::And, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Not, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Not, TypeDef::PointerType(_)) => todo!(),
+        (Operator::BitNot, TypeDef::PrimType(_)) => todo!(),
+        (Operator::BitNot, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Mod, TypeDef::PrimType(_)) => todo!(),
+        (Operator::Mod, TypeDef::PointerType(_)) => todo!(),
+        (Operator::ShiftLeft, TypeDef::PrimType(_)) => todo!(),
+        (Operator::ShiftLeft, TypeDef::PointerType(_)) => todo!(),
+        (Operator::ShiftRight, TypeDef::PrimType(_)) => todo!(),
+        (Operator::ShiftRight, TypeDef::PointerType(_)) => todo!(),
+        _ => return Err(TypeError::BinaryOperatorError.into()),
+    };
+        
+    let res = ExprType::BinOp(op, Box::new(left), Box::new(right));
+    let res = Expr::new(res, ast_data).typed(t);
+    Ok(res)
+}
+
 impl TypecheckAst<Expr> for Expr {
     fn typecheck(&self, data: &mut TypeData) -> Result<Expr, FrontendError> {
         match &self.value {
-            ExprType::BinOp(_, _, _) => todo!(),
-            ExprType::UnaryPreOp(_, _) => todo!(),
-            ExprType::UnaryPostOp(_, _) => todo!(),
+            ExprType::BinOp(op, left, right) => {
+                binary_op(op.clone(), left.clone(), right.clone(), data, self.data.clone())
+            }
+            ExprType::UnaryPreOp(op, e) => {
+                let (e, t) = unary_op(op.clone(), e.clone(), data)?;
+                let res = ExprType::UnaryPreOp(op.clone(), Box::new(e));
+                let res = Expr::new(res, self.data.clone()).typed(t);
+                Ok(res)
+            }
+            ExprType::UnaryPostOp(op, e) => {
+                let (e, t) = unary_op(op.clone(), e.clone(), data)?;
+                let res = ExprType::UnaryPostOp(op.clone(), Box::new(e));
+                let res = Expr::new(res, self.data.clone()).typed(t);
+                Ok(res)
+            }
             ExprType::Value(v) => match v {
                 Val::Integer(_) => Ok(self.typed(PrimType::Int.into())),
                 Val::Char(_) => Ok(self.typed(PrimType::Char.into())),
@@ -104,8 +194,56 @@ impl TypecheckAst<Expr> for Expr {
                 let t = data.get_ident_type(ident)?;
                 Ok(self.typed(t))
             }
-            ExprType::Call(_, _) => todo!(),
-            ExprType::Index(_, _) => todo!(),
+            ExprType::Call(func, params) => {
+                let func = func.typecheck(data)?;
+                let mut typed_par: Vec<Expr> = vec![];
+
+                let fn_type = if let TypeDef::Function(fn_type) = func.get_type() {
+                    Ok::<FnType, FrontendError>(fn_type)
+                } else {
+                    Err(TypeError::NonFunctionCall.into())
+                }?;
+
+                if fn_type.params.len() != params.len() {
+                    return Err(TypeError::WrongNumberOfParametes(
+                        fn_type.params.len(),
+                        params.len(),
+                    )
+                    .into());
+                }
+
+                for i in 0..params.len() {
+                    let tmp = params[i].typecheck(data)?;
+                    if tmp.get_type() != fn_type.params[i] {
+                        return Err(TypeError::WrongParamType(
+                            fn_type.params[i].clone(),
+                            tmp.get_type(),
+                        )
+                        .into());
+                    }
+                    typed_par.push(tmp);
+                }
+
+                let res = ExprType::Call(Box::new(func), typed_par);
+                let res = Expr::new(res, self.data.clone()).typed(*fn_type.ret_type);
+
+                Ok(res)
+            }
+            ExprType::Index(object, index) => {
+                let object = object.typecheck(data)?;
+                let index = index.typecheck(data)?;
+                if index.get_type() != PrimType::Int.into() {
+                    return Err(TypeError::IndexMustBeInteger.into());
+                }
+                let t = if let TypeDef::PointerType(t) = object.get_type() {
+                    Ok::<TypeDef, FrontendError>(*t)
+                } else {
+                    Err(TypeError::NonPointerDeref.into())
+                }?;
+                let res = ExprType::Index(Box::new(object), Box::new(index));
+                let res = Expr::new(res, self.data.clone()).typed(t);
+                Ok(res)
+            }
             ExprType::Deref(e) => {
                 let tmp = e.typecheck(data)?;
                 let t = if let TypeDef::PointerType(t) = tmp.get_type() {
@@ -177,10 +315,67 @@ impl TypecheckAst<Statement> for Statement {
                 let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
                 Ok(res)
             }
-            StatementType::If(_, _) => todo!(),
-            StatementType::IfElse(_, _, _) => todo!(),
-            StatementType::For(_, _, _, _) => todo!(),
-            StatementType::While(_, _) => todo!(),
+            StatementType::If(cond, then_body) => {
+                let cond = cond.typecheck(data)?;
+                if cond.get_type() != PrimType::Int.into() {
+                    return Err(TypeError::ConditionMustBeInt.into());
+                }
+                data.push_env();
+                let then_body = then_body.typecheck(data)?;
+                data.pop_env();
+                let res = StatementType::If(cond, Box::new(then_body));
+                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
+                Ok(res)
+            }
+            StatementType::IfElse(cond, then_body, else_body) => {
+                let cond = cond.typecheck(data)?;
+                if cond.get_type() != PrimType::Int.into() {
+                    return Err(TypeError::ConditionMustBeInt.into());
+                }
+                data.push_env();
+                let then_body = then_body.typecheck(data)?;
+                data.pop_env();
+                data.push_env();
+                let else_body = else_body.typecheck(data)?;
+                data.pop_env();
+                let res = StatementType::IfElse(cond, Box::new(then_body), Box::new(else_body));
+                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
+                Ok(res)
+            }
+            StatementType::For(init, cond, update, body) => {
+                let init = match init.clone().map(|x| x.typecheck(data)) {
+                    Some(Err(e)) => return Err(e),
+                    Some(Ok(init)) => Some(Box::new(init)),
+                    None => None,
+                };
+                let cond = match cond.clone().map(|x| x.typecheck(data)) {
+                    Some(Err(e)) => return Err(e),
+                    Some(Ok(init)) if init.get_type() == PrimType::Int.into() => Some(init),
+                    Some(Ok(_)) => return Err(TypeError::ConditionMustBeInt.into()),
+                    None => None,
+                };
+                let update = match update.clone().map(|x| x.typecheck(data)) {
+                    Some(Err(e)) => return Err(e),
+                    Some(Ok(init)) => Some(init),
+                    None => None,
+                };
+                let body = body.typecheck(data)?;
+                let res = StatementType::For(init, cond, update, Box::new(body));
+                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
+                Ok(res)
+            }
+            StatementType::While(cond, body) => {
+                let cond = cond.typecheck(data)?;
+                if cond.get_type() != PrimType::Int.into() {
+                    return Err(TypeError::ConditionMustBeInt.into());
+                }
+                data.push_env();
+                let body = body.typecheck(data)?;
+                data.pop_env();
+                let res = StatementType::While(cond, Box::new(body));
+                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
+                Ok(res)
+            }
             StatementType::Break | StatementType::Continue => Ok(self.typed(TypeDef::Void)),
             StatementType::Return(e) => match (e, data.ret()) {
                 (None, None) => Ok(self.typed(TypeDef::Void)),
@@ -190,11 +385,7 @@ impl TypecheckAst<Statement> for Statement {
                     let res_typed = res.typecheck(data)?;
 
                     if res_typed.data.node_type != Some(exp.clone()) {
-                        return Err(TypeError::ReturnTypeError(
-                            res_typed.data.node_type.unwrap(),
-                            exp,
-                        )
-                        .into());
+                        return Err(TypeError::ReturnTypeError(res_typed.get_type(), exp).into());
                     }
 
                     let res = StatementType::Return(Some(Box::new(res_typed)));
@@ -226,12 +417,6 @@ impl TypecheckAst<FnDecl> for FnDecl {
     }
 }
 
-impl TypeData {
-    fn get_type(&self, symbol: String) -> Option<TypeDef> {
-        self.type_map.get(&symbol).cloned()
-    }
-}
-
 pub fn type_program(program: Program) -> Result<Program, FrontendError> {
     let mut data = TypeData::default();
     let mut res: Program = Program::default();
@@ -260,15 +445,68 @@ mod tests {
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
         let typed = type_program(res);
-        println!("{:?}", typed);
+        //println!("{:?}", typed);
         assert!(typed.is_ok());
     }
 
+    fn type_err(input: String) {
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.parse().unwrap();
+        let typed = type_program(res);
+        //println!("{:?}", typed);
+        assert!(typed.is_err());
+    }
+
     #[test]
-    fn test_typedef() {
+    fn basic_test_typedef() {
         type_ok("int main() {}".to_string());
         type_ok("int main() {return 1;}".to_string());
         type_ok("int main() {int x = 5;}".to_string());
+        type_err("int main() {int x = 5; char x;}".to_string());
         type_ok("int main() {int x = 5; return x;}".to_string());
+        type_err("char main() {int x = 5; return x;}".to_string());
+        type_ok("int a; int main() {return a;}".to_string());
+        type_err("int * a; int main() {return a;}".to_string());
+        type_ok("int f() { return 1; } int main() {return f();}".to_string());
+    }
+
+    #[test]
+    fn block_test_typedef() {
+        type_ok("int main() {int x; {int y = x;}}".to_string());
+        type_ok("int main() {int x; {int z = x;{int y = z; return z;}}}".to_string());
+        type_err("int main() {char x; {char z = x;{char y = z; return z;}}}".to_string());
+        type_err("int main() {{int y = x;} int x;}".to_string());
+        type_err("int main() {{int y = 5;} return y;}".to_string());
+    }
+
+    #[test]
+    fn flow_test_typedef() {
+        type_ok("int main() { if (1) return 1;  }".to_string());
+        type_ok("int main() { if (0) return 1;  }".to_string());
+        type_ok("int main() { while (0) return 1;  }".to_string());
+        type_ok("int main() { int x = 5; while (x) return 1;  }".to_string());
+        type_err("int main() { char x = 5; while (x) return 1;  }".to_string());
+        type_ok("int main() { if(1) { int x; } return 1;}".to_string());
+        type_err("int main() { if(1) int x; return x;}".to_string());
+        type_ok("int main() { if(1) int x; else int x;}".to_string());
+        type_err("int main() { if(1) int x; else int x; return x;}".to_string());
+        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}".to_string())
+    }
+
+    #[test]
+    fn index_test_typedef() {
+        type_ok("int main() { int * x; return x[0]; }".to_string());
+        type_ok("char * f() {} char main() { return f()[1]; }".to_string());
+        type_err("int f() {} int main() { return f()[0]; }".to_string());
+        type_err("int main() { int * x; return x[x]; }".to_string());
+        type_err("int main() { char * x; return x[x]; }".to_string());
+        type_err("int main() { char * x; return x[0]; }".to_string());
+    }
+
+    #[test]
+    fn cast_test_typedef() {
+        type_ok("int main() { char * x; return cast<int>(x[0]); }".to_string());
+        type_ok("char main() { char * x; return x[cast<int>(x)]; }".to_string());
     }
 }

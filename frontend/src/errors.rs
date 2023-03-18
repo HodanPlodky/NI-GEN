@@ -1,4 +1,4 @@
-use crate::{lexer::TokenType, ast::TypeDef};
+use crate::{lexer::{TokenType, Operator}, ast::TypeDef};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LexerError {
@@ -23,7 +23,15 @@ pub enum TypeError {
     ReturnTypeError(TypeDef, TypeDef),
     IdentDoesNotExist(String),
     IdentAlreadyExists(String),
+    NonFunctionCall,
+    WrongNumberOfParametes(usize, usize),
+    WrongParamType(TypeDef, TypeDef),
     NonPointerDeref,
+    IndexMustBeInteger,
+    ConditionMustBeInt,
+    InvalidOperation(Operator),
+    BinaryTypeMissmatch(TypeDef, TypeDef),
+    BinaryOperatorError,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

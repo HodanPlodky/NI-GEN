@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, PrimType, Program,
-        Statement, TypeDef, Val, VarDecl, VarDeclType, StatementType,
+        Statement, StatementType, TypeDef, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
@@ -187,15 +187,16 @@ impl Parser {
         self.compare(TokenType::RightBrac)?;
 
         let body = self.statement()?;
-        Ok(Statement::new(StatementType::While(cond, Box::new(body)), data))
+        Ok(Statement::new(
+            StatementType::While(cond, Box::new(body)),
+            data,
+        ))
     }
 
     fn for_statement(&mut self) -> Result<Statement, FrontendError> {
         let data = self.act_data();
         self.compare(Keyword::For.into())?;
-
         self.compare(TokenType::LeftBrac)?;
-
         let var = if self.top().tok != TokenType::Semicol {
             Some(Box::new(self.expr_or_vars()?))
         } else {
@@ -210,16 +211,20 @@ impl Parser {
         };
         self.compare(TokenType::Semicol)?;
 
-        let end = if self.top().tok != TokenType::Semicol {
+        let end = if self.top().tok != TokenType::RightBrac {
             Some(self.expr()?)
         } else {
             None
         };
+
         self.compare(TokenType::RightBrac)?;
 
         let body = self.statement()?;
 
-        Ok(Statement::new(StatementType::For(var, cond, end, Box::new(body)), data))
+        Ok(Statement::new(
+            StatementType::For(var, cond, end, Box::new(body)),
+            data,
+        ))
     }
 
     fn block_statement(&mut self) -> Result<Statement, FrontendError> {
@@ -477,6 +482,7 @@ impl Parser {
                     result = Expr::new(ExprType::UnaryPostOp(o, Box::new(result)), data);
                 }
                 TokenType::LeftBrac => {
+                    self.pop();
                     let mut args = vec![];
                     if self.top().tok != TokenType::RightBrac {
                         args.push(self.expr()?);
@@ -485,6 +491,7 @@ impl Parser {
                             args.push(self.expr()?);
                         }
                     }
+                    self.pop();
                     result = Expr::new(ExprType::Call(Box::new(result), args), data);
                 }
                 TokenType::LeftSquare => {
@@ -546,39 +553,14 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    //
-    //fn expr_boiler(input: &str, correct: Expr) {
-    //let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
-    //let mut parser = Parser::new(lex).unwrap();
-    //let res = parser.expr();
-    //assert!(res.is_ok());
-    //let res = res.unwrap();
-    //
-    //println!("{:?}", res);
-    //
-    //assert_eq!(res, correct);
-    //}
-    //
-    //#[test]
-    //fn test_expr() {
-    //expr_boiler(
-    //"1  + 2",
-    //Expr::BinOp(
-    //Operator::Add,
-    //Box::new(Expr::Value(Val::Integer(1))),
-    //Box::new(Expr::Value(Val::Integer(2))),
-    //),
-    //);
-    //
-    //expr_boiler(
-    //" 145  * a  ",
-    //Expr::BinOp(
-    //Operator::Mul,
-    //Box::new(Expr::Value(Val::Integer(145))),
-    //Box::new(Expr::Ident("a".to_string())),
-    //),
-    //);
-    //}
+
+    fn program_ok(input: &str) {
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.parse();
+        println!("{:?}", res);
+        assert!(res.is_ok());
+    }
 
     #[test]
     fn basic_program() {
@@ -599,11 +581,12 @@ mod tests {
                 return a;
             }
         ";
-        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
-        let mut parser = Parser::new(lex).unwrap();
-        let res = parser.parse();
-        println!("{:?}", res);
-        assert!(res.is_ok());
+        program_ok(input);
+        let input = "int main() {f();}";
+        program_ok(input);
+        let input = "int f() { return 1; } int main() {return f();}";
+        program_ok(input);
+        program_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
     }
 
     #[test]

@@ -287,6 +287,7 @@ impl Lexer {
         if self.eof() {
             Ok(self.create_token(normal))
         } else if self.peek_char()? == c {
+            let _tmp = self.next_char();
             Ok(self.create_token(double))
         } else {
             Ok(self.create_token(normal))
@@ -348,7 +349,7 @@ mod tests {
     #[test]
     fn lexer_test() {
         let input =
-            "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52".to_string();
+            "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52++".to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
 
@@ -398,6 +399,7 @@ mod tests {
             TokenType::RightBrac,
             TokenType::RightCurly,
             TokenType::Int(52),
+            Operator::Inc.into(),
             TokenType::Eof,
         ];
         assert_eq!(
