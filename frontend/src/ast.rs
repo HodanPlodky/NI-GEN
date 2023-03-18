@@ -55,6 +55,11 @@ where
             data,
         }
     }
+
+    // helper function for instances when I already know the type
+    pub fn get_type(&self) -> TypeDef {
+        self.data.node_type.clone().unwrap()
+    }
 }
 
 impl<T> Deref for AstNode<T>
@@ -89,6 +94,17 @@ pub struct Program {
     pub fn_defs: Vec<FnDef>,
     pub fn_decl: Vec<FnDecl>,
     pub main: Option<FnDef>,
+}
+
+impl Default for Program {
+    fn default() -> Self {
+        Self {
+            var_decls: vec![],
+            fn_defs: vec![],
+            fn_decl: vec![],
+            main: None,
+        }
+    }
 }
 
 pub type Expr = AstNode<ExprType>;
@@ -157,11 +173,39 @@ pub enum PrimType {
     Char,
 }
 
+impl From<PrimType> for TypeDef {
+    fn from(p: PrimType) -> Self {
+        TypeDef::PrimType(p)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FnType {
+    pub params: Vec<TypeDef>,
+    pub ret_type: Box<TypeDef>,
+}
+
+impl From<FnType> for TypeDef {
+    fn from(f: FnType) -> Self {
+        TypeDef::Function(f)
+    }
+}
+
+impl From<FnDecl> for FnType {
+    fn from(decl: FnDecl) -> Self {
+        Self {
+            params: decl.params.iter().map(|x| x.1.clone()).collect(),
+            ret_type: Box::new(decl.ret_type.clone()),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeDef {
     Void,
     PrimType(PrimType),
     PointerType(Box<TypeDef>),
+    Function(FnType),
 }
 
 pub type FnDecl = AstNode<FnDeclType>;
