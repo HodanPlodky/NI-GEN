@@ -57,7 +57,7 @@ impl Parser {
             let try_fn = self.fn_decl();
             match try_fn {
                 Ok(fn_def) => fns.push(fn_def),
-                Err(_) => {
+                Err(e) => {
                     self.reset_to(position)?;
                     vars.push(self.var_decl()?);
                     self.compare(TokenType::Semicol)?;
@@ -442,9 +442,10 @@ impl Parser {
         let t = self.top().tok;
         if let TokenType::Operator(o) = t {
             self.pop();
-            self.e_unary_pre_inner(o)?;
+            self.e_unary_pre_inner(o)
+        } else {
+            self.e_post()
         }
-        self.e_post()
     }
 
     fn e_unary_pre_inner(&mut self, operator: Operator) -> Result<Expr, FrontendError> {
@@ -587,6 +588,7 @@ mod tests {
         let input = "int f() { return 1; } int main() {return f();}";
         program_ok(input);
         program_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
+        program_ok("int main() { int * x = 3; return *x; }");
     }
 
     #[test]

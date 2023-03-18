@@ -1,4 +1,7 @@
-use crate::{lexer::{TokenType, Operator}, ast::TypeDef};
+use crate::{
+    ast::{Expr, TypeDef},
+    lexer::{Operator, TokenType},
+};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LexerError {
@@ -30,8 +33,9 @@ pub enum TypeError {
     IndexMustBeInteger,
     ConditionMustBeInt,
     InvalidOperation(Operator),
-    BinaryTypeMissmatch(TypeDef, TypeDef),
+    BinaryTypeMissmatch(Operator, TypeDef, TypeDef),
     BinaryOperatorError,
+    CannotAssignInto(Expr),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -208,6 +208,16 @@ pub enum TypeDef {
     Function(FnType),
 }
 
+impl TypeDef {
+    pub fn is_pointer(&self) -> bool {
+        if let TypeDef::PointerType(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub type FnDecl = AstNode<FnDeclType>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]

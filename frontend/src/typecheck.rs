@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
-        StatementType, TypeDef, Val, VarDecl, VarDeclType, AstData,
+        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
+        StatementType, TypeDef, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, TypeError},
     lexer::Operator,
@@ -32,14 +32,12 @@ impl EnvLevel {
 }
 
 pub struct TypeData {
-    //type_map: HashMap<String, TypeDef>,
     env: Vec<EnvLevel>,
 }
 
 impl Default for TypeData {
     fn default() -> Self {
         Self {
-            //type_map: HashMap::new(),
             env: vec![EnvLevel::new(None)],
         }
     }
@@ -105,17 +103,30 @@ fn unary_op(
     Ok((expr, t))
 }
 
+fn assign(left: &Expr, right: &Expr) -> Result<TypeDef, FrontendError> {
+    match (left.value.clone(), right.value.clone()) {
+        (ExprType::Ident(_), _) => (),
+        (ExprType::Deref(_), _) => (),
+        _ => return Err(TypeError::CannotAssignInto(left.clone()).into()),
+    }
+    Ok(TypeDef::Void)
+}
+
 fn binary_op(
     op: Operator,
     left: Box<Expr>,
     right: Box<Expr>,
     data: &mut TypeData,
-    ast_data : AstData,
+    ast_data: AstData,
 ) -> Result<Expr, FrontendError> {
     let left = left.typecheck(data)?;
     let right = right.typecheck(data)?;
-    if left.get_type() != right.get_type() {
-        return Err(TypeError::BinaryTypeMissmatch(left.get_type(), right.get_type()).into());
+    if !((left.get_type() == right.get_type())
+        || (op == Operator::Add
+            && left.get_type().is_pointer()
+            && right.get_type() == PrimType::Int.into()))
+    {
+        return Err(TypeError::BinaryTypeMissmatch(op, left.get_type(), right.get_type()).into());
     }
 
     if let TypeDef::Function(_) = left.get_type() {
@@ -123,14 +134,12 @@ fn binary_op(
     }
 
     let t: TypeDef = match (op, left.get_type()) {
-        (Operator::Add, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Add, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Sub, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Sub, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Mul, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Mul, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Div, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Div, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Add, TypeDef::PointerType(p)) => TypeDef::PointerType(p),
+        (Operator::Sub, TypeDef::PointerType(p)) => TypeDef::PointerType(p),
+        (Operator::Add, TypeDef::PrimType(t)) => t.into(),
+        (Operator::Sub, TypeDef::PrimType(t)) => t.into(),
+        (Operator::Mul, TypeDef::PrimType(t)) => t.into(),
+        (Operator::Div, TypeDef::PrimType(t)) => t.into(),
         (
             Operator::Lt
             | Operator::Le
@@ -140,29 +149,18 @@ fn binary_op(
             | Operator::Neq,
             _,
         ) => PrimType::Int.into(),
-        (Operator::Assign, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Assign, TypeDef::PointerType(_)) => todo!(),
-        (Operator::BitOr, TypeDef::PrimType(_)) => todo!(),
-        (Operator::BitOr, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Or, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Or, TypeDef::PointerType(_)) => todo!(),
-        (Operator::BitAnd, TypeDef::PrimType(_)) => todo!(),
-        (Operator::BitAnd, TypeDef::PointerType(_)) => todo!(),
-        (Operator::And, TypeDef::PrimType(_)) => todo!(),
-        (Operator::And, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Not, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Not, TypeDef::PointerType(_)) => todo!(),
-        (Operator::BitNot, TypeDef::PrimType(_)) => todo!(),
-        (Operator::BitNot, TypeDef::PointerType(_)) => todo!(),
-        (Operator::Mod, TypeDef::PrimType(_)) => todo!(),
-        (Operator::Mod, TypeDef::PointerType(_)) => todo!(),
-        (Operator::ShiftLeft, TypeDef::PrimType(_)) => todo!(),
-        (Operator::ShiftLeft, TypeDef::PointerType(_)) => todo!(),
-        (Operator::ShiftRight, TypeDef::PrimType(_)) => todo!(),
-        (Operator::ShiftRight, TypeDef::PointerType(_)) => todo!(),
+        (Operator::Assign, _) => assign(&left, &right)?,
+        (Operator::BitOr, TypeDef::PrimType(t)) => t.into(),
+        (Operator::BitAnd, TypeDef::PrimType(t)) => t.into(),
+        (Operator::And, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
+        (Operator::Or, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
+        (Operator::BitNot, TypeDef::PrimType(t)) => t.into(),
+        (Operator::Mod, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
+        (Operator::ShiftLeft, TypeDef::PrimType(t)) => t.into(),
+        (Operator::ShiftRight, TypeDef::PrimType(t)) => t.into(),
         _ => return Err(TypeError::BinaryOperatorError.into()),
     };
-        
+
     let res = ExprType::BinOp(op, Box::new(left), Box::new(right));
     let res = Expr::new(res, ast_data).typed(t);
     Ok(res)
@@ -171,9 +169,13 @@ fn binary_op(
 impl TypecheckAst<Expr> for Expr {
     fn typecheck(&self, data: &mut TypeData) -> Result<Expr, FrontendError> {
         match &self.value {
-            ExprType::BinOp(op, left, right) => {
-                binary_op(op.clone(), left.clone(), right.clone(), data, self.data.clone())
-            }
+            ExprType::BinOp(op, left, right) => binary_op(
+                op.clone(),
+                left.clone(),
+                right.clone(),
+                data,
+                self.data.clone(),
+            ),
             ExprType::UnaryPreOp(op, e) => {
                 let (e, t) = unary_op(op.clone(), e.clone(), data)?;
                 let res = ExprType::UnaryPreOp(op.clone(), Box::new(e));
@@ -259,7 +261,7 @@ impl TypecheckAst<Expr> for Expr {
                 let tmp = e.typecheck(data)?;
                 let res = ExprType::Address(Box::new(tmp.clone()));
                 let res = Expr::new(res, self.data.clone()).typed(TypeDef::PointerType(Box::new(
-                    tmp.data.node_type.clone().unwrap(),
+                    tmp.get_type(),
                 )));
                 Ok(res)
             }
@@ -445,7 +447,7 @@ mod tests {
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
         let typed = type_program(res);
-        //println!("{:?}", typed);
+        println!("{:?}", typed);
         assert!(typed.is_ok());
     }
 
@@ -491,7 +493,21 @@ mod tests {
         type_err("int main() { if(1) int x; return x;}".to_string());
         type_ok("int main() { if(1) int x; else int x;}".to_string());
         type_err("int main() { if(1) int x; else int x; return x;}".to_string());
-        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}".to_string())
+        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}".to_string());
+        type_ok(
+            "
+            int main() { 
+                for (int i = 5; i < 10; i++) {
+                    int x = 2;
+                    if (i > 2)
+                        return 1;
+                    else 
+                        x = i;
+                }
+                return 2;
+            }"
+            .to_string(),
+        );
     }
 
     #[test]
@@ -508,5 +524,14 @@ mod tests {
     fn cast_test_typedef() {
         type_ok("int main() { char * x; return cast<int>(x[0]); }".to_string());
         type_ok("char main() { char * x; return x[cast<int>(x)]; }".to_string());
+        type_ok("int f() {} char main() { return cast<char>(f); }".to_string());
+        type_err("int f() {} char main() { return f; }".to_string());
+    }
+
+    #[test]
+    fn deref_test_typedef() {
+        type_ok("int main() { int * x; return *x; }".to_string());
+        type_ok("int main() { int a = 5; int * x = &a; return *x; }".to_string());
+        type_ok("int main() { int a = 5; int * b = &a; int ** x = &b; return **x; }".to_string());
     }
 }
