@@ -60,6 +60,7 @@ pub enum Keyword {
     Break,
     Conti,
     Return,
+    Struct,
 }
 
 impl Into<TokenType> for Keyword {
@@ -84,6 +85,7 @@ impl FromStr for Keyword {
             "break" => Ok(Keyword::Break),
             "continue" => Ok(Keyword::Conti),
             "return" => Ok(Keyword::Return),
+            "struct" => Ok(Keyword::Struct),
             _ => Err(()),
         }
     }

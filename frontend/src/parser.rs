@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, PrimType, Program,
-        Statement, StatementType, TypeDef, Val, VarDecl, VarDeclType,
+        Statement, StatementType, StructDef, StructDefType, TypeDef, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
@@ -51,18 +51,23 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
         let mut vars = vec![];
         let mut fns = vec![];
+        let mut structs = vec![];
 
         while self.top().tok != TokenType::Eof {
-            let position = self.top().position;
-            let try_fn = self.fn_decl();
-            match try_fn {
-                Ok(fn_def) => fns.push(fn_def),
-                Err(_e) => {
-                    self.reset_to(position)?;
-                    vars.push(self.var_decl()?);
-                    self.compare(TokenType::Semicol)?;
-                }
-            };
+            if self.top().tok == Keyword::Struct.into() {
+                structs.push(self.struct_def()?);
+            } else {
+                let position = self.top().position;
+                let try_fn = self.fn_decl();
+                match try_fn {
+                    Ok(fn_def) => fns.push(fn_def),
+                    Err(_e) => {
+                        self.reset_to(position)?;
+                        vars.push(self.var_decl()?);
+                        self.compare(TokenType::Semicol)?;
+                    }
+                };
+            }
         }
 
         let main_fn = fns.iter().find(|x| x.header.name == "main").cloned();
@@ -73,10 +78,41 @@ impl Parser {
 
         Ok(Program {
             var_decls: vars,
+            structs,
             fn_defs: fns,
             fn_decl: vec![],
             main: main_fn,
         })
+    }
+
+    fn struct_def(&mut self) -> Result<StructDef, FrontendError> {
+        let data = self.act_data();
+        self.compare(Keyword::Struct.into())?;
+        let name = self.get_ident()?;
+
+        let fields = if self.top().tok == TokenType::Semicol {
+            self.pop();
+            None
+        } else {
+            self.compare(TokenType::LeftCurly)?;
+
+            let mut vars: Vec<VarDecl> = vec![];
+            while self.top().tok != TokenType::RightCurly {
+                let var = self.var_decl()?;
+                if let Some(_) = var.value.init_val {
+                    return Err(ParserError::FieldCannotHaveInit.into());
+                }
+                self.compare(TokenType::Semicol)?;
+            }
+
+            self.compare(TokenType::RightCurly)?;
+            Some(vars)
+        };
+
+        let res = StructDefType { name, fields };
+        let res = StructDef::new(res, data);
+
+        Ok(res)
     }
 
     pub fn fn_decl(&mut self) -> Result<FnDef, FrontendError> {
@@ -596,6 +632,15 @@ mod tests {
         program_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
         program_ok("int main() { int * x = 3; return *x; }");
         program_ok("int f(int a, int b) {}");
+    }
+
+    #[test]
+    fn struct_parse_test() {
+        program_ok("
+            struct A {
+                int a;
+            }
+        ");
     }
 
     #[test]

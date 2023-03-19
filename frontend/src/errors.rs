@@ -16,6 +16,7 @@ pub enum ParserError {
     UnexpectedToken(TokenType),
     InvalidType(TokenType),
     VarDeclInvalidName,
+    FieldCannotHaveInit,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -91,6 +91,7 @@ pub enum Val {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Program {
     pub var_decls: Vec<VarDecl>,
+    pub structs: Vec<StructDef>,
     pub fn_defs: Vec<FnDef>,
     pub fn_decl: Vec<FnDecl>,
     pub main: Option<FnDef>,
@@ -100,6 +101,7 @@ impl Default for Program {
     fn default() -> Self {
         Self {
             var_decls: vec![],
+            structs: vec![],
             fn_defs: vec![],
             fn_decl: vec![],
             main: None,
@@ -245,4 +247,12 @@ pub type FnDef = AstNode<FnDefType>;
 pub struct FnDefType {
     pub header: FnDecl,
     pub body: Option<Statement>,
+}
+
+pub type StructDef = AstNode<StructDefType>;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct StructDefType {
+    pub name: String,
+    pub fields: Option<Vec<VarDecl>>,
 }
