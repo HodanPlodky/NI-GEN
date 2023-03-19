@@ -36,6 +36,7 @@ pub enum TypeError {
     BinaryTypeMissmatch(Operator, TypeDef, TypeDef),
     BinaryOperatorError,
     CannotAssignInto(Expr),
+    TypeParametrMissmatch,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

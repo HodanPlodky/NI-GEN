@@ -408,7 +408,18 @@ impl TypecheckAst<FnDef> for FnDef {
     fn typecheck(&self, data: &mut TypeData) -> Result<FnDef, FrontendError> {
         if let Ok(t) = data.get_ident_type(&self.value.header.name) {
             match t {
-                TypeDef::Function(f_type) if !f_type.body_def => (),
+                TypeDef::Function(f_type)
+                    if !f_type.body_def
+                        && f_type.params.len() == self.header.params.len()
+                        && *f_type.ret_type == self.header.ret_type.clone() =>
+                {
+                    for i in 0..f_type.params.len() {
+                        if f_type.params[i] != self.header.params[i].1 {
+                            return Err(TypeError::TypeParametrMissmatch.into());
+                        }
+                    }
+                    ()
+                }
                 _ => {
                     return Err(
                         TypeError::IdentAlreadyExists(self.value.header.name.clone()).into(),
@@ -581,6 +592,15 @@ mod tests {
     fn binaryop_test_typedef() {}
 
     #[test]
+    fn function_test_typedef() {
+        type_ok("int f(int x) { return x + 1; } int main() { return f(2); }");
+        type_err("int f(char x) { return cast<int>(x); } int main() { return f(2); }");
+        type_err("int f(int x) { return x + 1; } int main() { return f(); }");
+        type_err("int f(int x) { return x + 1; } int main() { return f('a'); }");
+        type_err("int f(int x) { return x + 1; } int main() { return f(1, 2); }");
+    }
+
+    #[test]
     fn recur_test_typedef() {
         type_ok(
             "
@@ -598,7 +618,8 @@ mod tests {
                 int res = fib(10);
                 return res;
             }
-        ");
+        ",
+        );
 
         type_ok(
             "
@@ -611,7 +632,8 @@ mod tests {
             int odd(int n) {
                 return even(n - 1);
             }
-        ");
+        ",
+        );
 
         type_err(
             "
@@ -622,7 +644,7 @@ mod tests {
             int odd(int n) {
                 return even(n - 1);
             }
-        "
+        ",
         );
 
         type_err(
@@ -636,7 +658,21 @@ mod tests {
             int odd(int n) {
                 return even(n - 1);
             }
-        "
-        )
+        ",
+        );
+
+        type_err(
+            "
+            int f(int a);
+            int f(int a, char b) {}
+        ",
+        );
+
+        type_err(
+            "
+            int f(int a);
+            int f() {}
+        ",
+        );
     }
 }

@@ -97,6 +97,7 @@ impl Parser {
             let i = self.get_ident()?;
             params.push((i, t));
             while self.top().tok == TokenType::Comma {
+                self.pop();
                 let t = self.type_parse()?;
                 let i = self.get_ident()?;
                 params.push((i, t));
@@ -594,6 +595,7 @@ mod tests {
         program_ok(input);
         program_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
         program_ok("int main() { int * x = 3; return *x; }");
+        program_ok("int f(int a, int b) {}");
     }
 
     #[test]
