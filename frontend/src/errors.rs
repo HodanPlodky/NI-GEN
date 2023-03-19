@@ -38,6 +38,7 @@ pub enum TypeError {
     BinaryOperatorError,
     CannotAssignInto(Expr),
     TypeParametrMissmatch,
+    TypeIsNotSized,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

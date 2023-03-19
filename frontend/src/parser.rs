@@ -1,7 +1,10 @@
+use std::collections::HashSet;
+
 use crate::{
     ast::{
         AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, PrimType, Program,
-        Statement, StatementType, StructDef, StructDefType, TypeDef, Val, VarDecl, VarDeclType,
+        Statement, StatementType, StructDef, StructDefType, TopLevel, TypeDef, Val, VarDecl,
+        VarDeclType,
     },
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Operator, Token, TokenType},
@@ -10,13 +13,18 @@ use crate::{
 pub struct Parser {
     lexer: Lexer,
     curr_tok: Token,
+    type_names: HashSet<String>,
 }
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Result<Self, FrontendError> {
         let mut lexer = lexer;
         let curr_tok = lexer.get_token()?;
-        Ok(Self { lexer, curr_tok })
+        Ok(Self {
+            lexer,
+            curr_tok,
+            type_names: HashSet::new(),
+        })
     }
 
     fn reset_to(&mut self, position: usize) -> Result<(), FrontendError> {
@@ -49,40 +57,26 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
-        let mut vars = vec![];
-        let mut fns = vec![];
-        let mut structs = vec![];
+        let mut items: Vec<TopLevel> = vec![];
 
         while self.top().tok != TokenType::Eof {
             if self.top().tok == Keyword::Struct.into() {
-                structs.push(self.struct_def()?);
+                items.push(TopLevel::Structure(self.struct_def()?));
             } else {
                 let position = self.top().position;
                 let try_fn = self.fn_decl();
                 match try_fn {
-                    Ok(fn_def) => fns.push(fn_def),
+                    Ok(fn_def) => items.push(TopLevel::Function(fn_def)),
                     Err(_e) => {
                         self.reset_to(position)?;
-                        vars.push(self.var_decl()?);
+                        items.push(TopLevel::Var(self.var_decl()?));
                         self.compare(TokenType::Semicol)?;
                     }
                 };
             }
         }
 
-        let main_fn = fns.iter().find(|x| x.header.name == "main").cloned();
-        let fns = fns
-            .into_iter()
-            .filter(|x| x.header.name != "main")
-            .collect();
-
-        Ok(Program {
-            var_decls: vars,
-            structs,
-            fn_defs: fns,
-            fn_decl: vec![],
-            main: main_fn,
-        })
+        Ok(Program { items })
     }
 
     fn struct_def(&mut self) -> Result<StructDef, FrontendError> {
@@ -109,6 +103,7 @@ impl Parser {
             self.compare(TokenType::RightCurly)?;
             Some(vars)
         };
+        self.type_names.insert(name.clone());
 
         let res = StructDefType { name, fields };
         let res = StructDef::new(res, data);
@@ -578,6 +573,13 @@ impl Parser {
     }
 
     fn type_parse(&mut self) -> Result<TypeDef, FrontendError> {
+        if let TokenType::Ident(name) = self.top().tok {
+            if self.type_names.contains(&name) {
+                self.pop();
+                return Ok(TypeDef::Alias(name));
+            }
+        }
+
         let mut t = match self.pop().tok {
             TokenType::Kw(Keyword::Void) => Ok(TypeDef::Void),
             TokenType::Kw(Keyword::Int) => Ok(TypeDef::PrimType(PrimType::Int)),
@@ -610,7 +612,7 @@ mod tests {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse();
-        println!("{:?}", res);
+        //println!("{:?}", res);
         assert!(res.is_err());
     }
 
@@ -645,17 +647,20 @@ mod tests {
 
     #[test]
     fn struct_parse_test() {
-        program_ok("
+        program_ok(
+            "
             struct A {
                 int a;
             }
-        ");
+        ",
+        );
 
         program_ok("struct Structure; int main() {}");
         program_err("struct int;");
         program_ok("struct A{}");
         program_ok("struct A {int a; char b;}");
         program_err("struct A {int a = 1; char b;}");
+        program_ok("struct Structure; Structure main() {}");
     }
 
     #[test]
@@ -664,7 +669,12 @@ mod tests {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse();
-        println!("{:?}", res);
+        //println!("{:?}", res);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn tmp() {
+        program_ok("struct Structure; Structure main() {  }");
     }
 }

@@ -90,22 +90,19 @@ pub enum Val {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Program {
-    pub var_decls: Vec<VarDecl>,
-    pub structs: Vec<StructDef>,
-    pub fn_defs: Vec<FnDef>,
-    pub fn_decl: Vec<FnDecl>,
-    pub main: Option<FnDef>,
+    pub items: Vec<TopLevel>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum TopLevel {
+    Function(FnDef),
+    Var(VarDecl),
+    Structure(StructDef),
 }
 
 impl Default for Program {
     fn default() -> Self {
-        Self {
-            var_decls: vec![],
-            structs: vec![],
-            fn_defs: vec![],
-            fn_decl: vec![],
-            main: None,
-        }
+        Self { items: vec![] }
     }
 }
 
@@ -220,6 +217,8 @@ pub enum TypeDef {
     PrimType(PrimType),
     PointerType(Box<TypeDef>),
     Function(FnType),
+    Alias(String),
+    Struct(StructDefType),
 }
 
 impl TypeDef {
@@ -255,4 +254,13 @@ pub type StructDef = AstNode<StructDefType>;
 pub struct StructDefType {
     pub name: String,
     pub fields: Option<Vec<VarDecl>>,
+}
+
+impl TypeDef {
+    pub fn sized(&self) -> bool {
+        match self {
+            TypeDef::Struct(s) => s.fields.is_some(),
+            _ => true,
+        }
+    }
 }

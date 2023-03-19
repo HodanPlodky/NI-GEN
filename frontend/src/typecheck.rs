@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     ast::{
         AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
-        StatementType, TypeDef, Val, VarDecl, VarDeclType,
+        StatementType, StructDef, StructDefType, TopLevel, TypeDef, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, TypeError},
     lexer::Operator,
@@ -32,12 +32,14 @@ impl EnvLevel {
 }
 
 pub struct TypeData {
+    type_map: HashMap<String, TypeDef>,
     env: Vec<EnvLevel>,
 }
 
 impl Default for TypeData {
     fn default() -> Self {
         Self {
+            type_map: HashMap::new(),
             env: vec![EnvLevel::new(None)],
         }
     }
@@ -57,6 +59,21 @@ impl TypeData {
         let last_index = self.env.len() - 1;
         self.env[last_index].add_var(name, var_type);
         Ok(())
+    }
+
+    fn add_type(&mut self, name: &String, value: TypeDef) {
+        self.type_map.insert(name.clone(), value);
+    }
+
+    fn get_type(&mut self, name: &String) -> Result<TypeDef, FrontendError> {
+        Ok(self.type_map[name].clone())
+    }
+
+    fn translate_type(&mut self, type_def: TypeDef) -> Result<TypeDef, FrontendError> {
+        match type_def {
+            TypeDef::Alias(name) => self.get_type(&name),
+            t => Ok(t),
+        }
     }
 
     fn ret(&self) -> Option<TypeDef> {
@@ -278,6 +295,11 @@ impl TypecheckAst<Expr> for Expr {
 impl TypecheckAst<VarDecl> for VarDecl {
     fn typecheck(&self, data: &mut TypeData) -> Result<VarDecl, FrontendError> {
         let t = self.var_type.clone();
+        let t = data.translate_type(t)?;
+
+        if !t.sized() {
+            return Err(TypeError::TypeIsNotSized.into());
+        }
 
         data.add_var(&self.name, t.clone())?;
 
@@ -458,19 +480,50 @@ impl TypecheckAst<FnDecl> for FnDecl {
     }
 }
 
+impl TypecheckAst<StructDef> for StructDef {
+    fn typecheck(&self, data: &mut TypeData) -> Result<StructDef, FrontendError> {
+        data.add_type(
+            &self.name,
+            TypeDef::Struct(StructDefType {
+                name: self.name.clone(),
+                fields: None,
+            }),
+        );
+        let fields: Option<Vec<VarDecl>> = if let Some(fields) = self.fields.clone() {
+            let mut res = vec![];
+            for field in fields {
+                res.push(field.typecheck(data)?);
+            }
+            Some(res)
+        } else {
+            None
+        };
+        let res = StructDefType {
+            name: self.name.clone(),
+            fields,
+        };
+        data.add_type(&self.name, TypeDef::Struct(res.clone()));
+        let res = StructDef::new(res, self.data.clone());
+        Ok(res)
+    }
+}
+
+impl TypecheckAst<TopLevel> for TopLevel {
+    fn typecheck(&self, data: &mut TypeData) -> Result<TopLevel, FrontendError> {
+        match self {
+            TopLevel::Function(f) => Ok(TopLevel::Function(f.typecheck(data)?)),
+            TopLevel::Var(v) => Ok(TopLevel::Var(v.typecheck(data)?)),
+            TopLevel::Structure(s) => Ok(TopLevel::Structure(s.typecheck(data)?)),
+        }
+    }
+}
+
 pub fn type_program(program: Program) -> Result<Program, FrontendError> {
     let mut data = TypeData::default();
     let mut res: Program = Program::default();
-    for var in program.var_decls {
-        res.var_decls.push(var.typecheck(&mut data)?);
-    }
 
-    for fn_def in program.fn_defs {
-        res.fn_defs.push(fn_def.typecheck(&mut data)?);
-    }
-
-    if let Some(main) = program.main {
-        res.main = Some(main.typecheck(&mut data)?);
+    for item in program.items {
+        res.items.push(item.typecheck(&mut data)?);
     }
 
     Ok(res)
@@ -486,7 +539,7 @@ mod tests {
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
         let typed = type_program(res);
-        println!("{:?}", typed);
+        //println!("{:?}", typed);
         assert!(typed.is_ok());
     }
 
@@ -674,5 +727,14 @@ mod tests {
             int f() {}
         ",
         );
+    }
+
+    #[test]
+    fn struct_test_typedef() {
+        type_ok("struct A; int main() {}");
+        type_ok("struct A {} A f() {}");
+        type_err("struct A; A f() {}");
+        type_ok("struct A {} A v;");
+        type_err("struct A; A v;");
     }
 }
