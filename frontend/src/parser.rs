@@ -102,6 +102,7 @@ impl Parser {
                 if let Some(_) = var.value.init_val {
                     return Err(ParserError::FieldCannotHaveInit.into());
                 }
+                vars.push(var);
                 self.compare(TokenType::Semicol)?;
             }
 
@@ -605,6 +606,14 @@ mod tests {
         assert!(res.is_ok());
     }
 
+    fn program_err(input: &str) {
+        let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
+        let mut parser = Parser::new(lex).unwrap();
+        let res = parser.parse();
+        println!("{:?}", res);
+        assert!(res.is_err());
+    }
+
     #[test]
     fn basic_program() {
         let input = "
@@ -641,6 +650,12 @@ mod tests {
                 int a;
             }
         ");
+
+        program_ok("struct Structure; int main() {}");
+        program_err("struct int;");
+        program_ok("struct A{}");
+        program_ok("struct A {int a; char b;}");
+        program_err("struct A {int a = 1; char b;}");
     }
 
     #[test]
