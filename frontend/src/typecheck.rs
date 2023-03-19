@@ -53,6 +53,12 @@ impl TypeData {
         Ok(())
     }
 
+    fn add_force(&mut self, name: &String, var_type: TypeDef) -> Result<(), FrontendError> {
+        let last_index = self.env.len() - 1;
+        self.env[last_index].add_var(name, var_type);
+        Ok(())
+    }
+
     fn ret(&self) -> Option<TypeDef> {
         let last_index = self.env.len() - 1;
         self.env[last_index].ret.clone()
@@ -260,9 +266,8 @@ impl TypecheckAst<Expr> for Expr {
             ExprType::Address(e) => {
                 let tmp = e.typecheck(data)?;
                 let res = ExprType::Address(Box::new(tmp.clone()));
-                let res = Expr::new(res, self.data.clone()).typed(TypeDef::PointerType(Box::new(
-                    tmp.get_type(),
-                )));
+                let res = Expr::new(res, self.data.clone())
+                    .typed(TypeDef::PointerType(Box::new(tmp.get_type())));
                 Ok(res)
             }
             ExprType::Cast(t, _) => Ok(self.typed(t.clone())),
@@ -401,10 +406,33 @@ impl TypecheckAst<Statement> for Statement {
 
 impl TypecheckAst<FnDef> for FnDef {
     fn typecheck(&self, data: &mut TypeData) -> Result<FnDef, FrontendError> {
-        let header = self.value.header.typecheck(data)?;
-        data.push_fn(header.ret_type.clone());
-        let body = self.value.body.typecheck(data)?;
-        data.pop_env();
+        if let Ok(t) = data.get_ident_type(&self.value.header.name) {
+            match t {
+                TypeDef::Function(f_type) if !f_type.body_def => (),
+                _ => {
+                    return Err(
+                        TypeError::IdentAlreadyExists(self.value.header.name.clone()).into(),
+                    )
+                }
+            }
+        }
+        let t: FnType = self.clone().into();
+        let header = self.header.typed(TypeDef::Void);
+
+        data.add_force(&self.value.header.name, t.into())?;
+
+        let body = if let Some(body) = self.value.body.clone() {
+            data.push_fn(header.ret_type.clone());
+            for (name, var_type) in self.value.header.value.params.iter() {
+                data.add_var(name, var_type.clone())?;
+            }
+            let body = body.typecheck(data)?;
+            data.pop_env();
+            Some(body)
+        } else {
+            None
+        };
+
         let res = FnDefType { header, body };
         let res = FnDef::new(res, self.data.clone()).typed(TypeDef::Void);
         Ok(res)
@@ -442,7 +470,7 @@ mod tests {
     use super::*;
     use crate::{lexer::Lexer, parser::Parser};
 
-    fn type_ok(input: String) {
+    fn type_ok(input: &str) {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
@@ -451,7 +479,7 @@ mod tests {
         assert!(typed.is_ok());
     }
 
-    fn type_err(input: String) {
+    fn type_err(input: &str) {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
@@ -462,38 +490,38 @@ mod tests {
 
     #[test]
     fn basic_test_typedef() {
-        type_ok("int main() {}".to_string());
-        type_ok("int main() {return 1;}".to_string());
-        type_ok("int main() {int x = 5;}".to_string());
-        type_err("int main() {int x = 5; char x;}".to_string());
-        type_ok("int main() {int x = 5; return x;}".to_string());
-        type_err("char main() {int x = 5; return x;}".to_string());
-        type_ok("int a; int main() {return a;}".to_string());
-        type_err("int * a; int main() {return a;}".to_string());
-        type_ok("int f() { return 1; } int main() {return f();}".to_string());
+        type_ok("int main() {}");
+        type_ok("int main() {return 1;}");
+        type_ok("int main() {int x = 5;}");
+        type_err("int main() {int x = 5; char x;}");
+        type_ok("int main() {int x = 5; return x;}");
+        type_err("char main() {int x = 5; return x;}");
+        type_ok("int a; int main() {return a;}");
+        type_err("int * a; int main() {return a;}");
+        type_ok("int f() { return 1; } int main() {return f();}");
     }
 
     #[test]
     fn block_test_typedef() {
-        type_ok("int main() {int x; {int y = x;}}".to_string());
-        type_ok("int main() {int x; {int z = x;{int y = z; return z;}}}".to_string());
-        type_err("int main() {char x; {char z = x;{char y = z; return z;}}}".to_string());
-        type_err("int main() {{int y = x;} int x;}".to_string());
-        type_err("int main() {{int y = 5;} return y;}".to_string());
+        type_ok("int main() {int x; {int y = x;}}");
+        type_ok("int main() {int x; {int z = x;{int y = z; return z;}}}");
+        type_err("int main() {char x; {char z = x;{char y = z; return z;}}}");
+        type_err("int main() {{int y = x;} int x;}");
+        type_err("int main() {{int y = 5;} return y;}");
     }
 
     #[test]
     fn flow_test_typedef() {
-        type_ok("int main() { if (1) return 1;  }".to_string());
-        type_ok("int main() { if (0) return 1;  }".to_string());
-        type_ok("int main() { while (0) return 1;  }".to_string());
-        type_ok("int main() { int x = 5; while (x) return 1;  }".to_string());
-        type_err("int main() { char x = 5; while (x) return 1;  }".to_string());
-        type_ok("int main() { if(1) { int x; } return 1;}".to_string());
-        type_err("int main() { if(1) int x; return x;}".to_string());
-        type_ok("int main() { if(1) int x; else int x;}".to_string());
-        type_err("int main() { if(1) int x; else int x; return x;}".to_string());
-        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}".to_string());
+        type_ok("int main() { if (1) return 1;  }");
+        type_ok("int main() { if (0) return 1;  }");
+        type_ok("int main() { while (0) return 1;  }");
+        type_ok("int main() { int x = 5; while (x) return 1;  }");
+        type_err("int main() { char x = 5; while (x) return 1;  }");
+        type_ok("int main() { if(1) { int x; } return 1;}");
+        type_err("int main() { if(1) int x; return x;}");
+        type_ok("int main() { if(1) int x; else int x;}");
+        type_err("int main() { if(1) int x; else int x; return x;}");
+        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
         type_ok(
             "
             int main() { 
@@ -502,36 +530,113 @@ mod tests {
                     if (i > 2)
                         return 1;
                     else 
-                        x = i;
+                        x = i + x;
                 }
                 return 2;
-            }"
-            .to_string(),
+            }",
         );
     }
 
     #[test]
     fn index_test_typedef() {
-        type_ok("int main() { int * x; return x[0]; }".to_string());
-        type_ok("char * f() {} char main() { return f()[1]; }".to_string());
-        type_err("int f() {} int main() { return f()[0]; }".to_string());
-        type_err("int main() { int * x; return x[x]; }".to_string());
-        type_err("int main() { char * x; return x[x]; }".to_string());
-        type_err("int main() { char * x; return x[0]; }".to_string());
+        type_ok("int main() { int * x; return x[0]; }");
+        type_ok("char * f() {} char main() { return f()[1]; }");
+        type_err("int f() {} int main() { return f()[0]; }");
+        type_err("int main() { int * x; return x[x]; }");
+        type_err("int main() { char * x; return x[x]; }");
+        type_err("int main() { char * x; return x[0]; }");
     }
 
     #[test]
     fn cast_test_typedef() {
-        type_ok("int main() { char * x; return cast<int>(x[0]); }".to_string());
-        type_ok("char main() { char * x; return x[cast<int>(x)]; }".to_string());
-        type_ok("int f() {} char main() { return cast<char>(f); }".to_string());
-        type_err("int f() {} char main() { return f; }".to_string());
+        type_ok("int main() { char * x; return cast<int>(x[0]); }");
+        type_ok("char main() { char * x; return x[cast<int>(x)]; }");
+        type_ok("int f() {} char main() { return cast<char>(f); }");
+        type_err("int f() {} char main() { return f; }");
     }
 
     #[test]
     fn deref_test_typedef() {
-        type_ok("int main() { int * x; return *x; }".to_string());
-        type_ok("int main() { int a = 5; int * x = &a; return *x; }".to_string());
-        type_ok("int main() { int a = 5; int * b = &a; int ** x = &b; return **x; }".to_string());
+        type_ok("int main() { int * x; return *x; }");
+        type_ok("int main() { int a = 5; int * x = &a; return *x; }");
+        type_ok("int main() { int a = 5; int * b = &a; int ** x = &b; return **x; }");
+        type_err("int main() { int a = 5; int * b = &a; int ** x = &b; return ***x; }");
+        type_err("int main() { int a = 5; int * b = &a; int ** x = &b; return *x; }");
+    }
+
+    #[test]
+    fn assign_test_typedef() {
+        type_ok("int main() {int a = 5; a = 3; return a;}");
+        type_ok("int main() {int * a; *a = 3; return *a;}");
+        type_err("int main() {int * a; a = 3; return *a;}");
+        type_err("int f() {} int main() { f = 5; }");
+        type_err("int f() {} int main() { *f = 5; }");
+        type_err("int main() { 1 = 5; }");
+        type_err("int main() { *1 = 5; }");
+        type_err("int main() { **1 = 5; }");
+        type_err("int main() {int a = 5; *a = 3; return a;}");
+    }
+
+    #[test]
+    fn binaryop_test_typedef() {}
+
+    #[test]
+    fn recur_test_typedef() {
+        type_ok(
+            "
+            int fib(int n) {
+                if (n <= 0) {
+                    return 0;
+                }
+                else if (n <= 1) {
+                    return 1;
+                }
+                return fib(n - 1) + fib(n - 2);
+            }
+
+            int main() {
+                int res = fib(10);
+                return res;
+            }
+        ");
+
+        type_ok(
+            "
+            int odd(int n);
+
+            int even(int n) {
+                return odd(n - 1);
+            }
+
+            int odd(int n) {
+                return even(n - 1);
+            }
+        ");
+
+        type_err(
+            "
+            int even(int n) {
+                return odd(n - 1);
+            }
+
+            int odd(int n) {
+                return even(n - 1);
+            }
+        "
+        );
+
+        type_err(
+            "
+            int even(int n) {
+                return odd(n - 1);
+            }
+
+            int odd(int n);
+
+            int odd(int n) {
+                return even(n - 1);
+            }
+        "
+        )
     }
 }

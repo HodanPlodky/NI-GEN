@@ -183,6 +183,7 @@ impl From<PrimType> for TypeDef {
 pub struct FnType {
     pub params: Vec<TypeDef>,
     pub ret_type: Box<TypeDef>,
+    pub body_def: bool,
 }
 
 impl From<FnType> for TypeDef {
@@ -196,6 +197,17 @@ impl From<FnDecl> for FnType {
         Self {
             params: decl.params.iter().map(|x| x.1.clone()).collect(),
             ret_type: Box::new(decl.ret_type.clone()),
+            body_def: false,
+        }
+    }
+}
+
+impl From<FnDef> for FnType {
+    fn from(fn_def: FnDef) -> Self {
+        Self {
+            params: fn_def.header.params.iter().map(|x| x.1.clone()).collect(),
+            ret_type: Box::new(fn_def.header.ret_type.clone()),
+            body_def: fn_def.body.is_some(),
         }
     }
 }
@@ -232,5 +244,5 @@ pub type FnDef = AstNode<FnDefType>;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FnDefType {
     pub header: FnDecl,
-    pub body: Statement,
+    pub body: Option<Statement>,
 }

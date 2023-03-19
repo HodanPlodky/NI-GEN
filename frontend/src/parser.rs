@@ -57,7 +57,7 @@ impl Parser {
             let try_fn = self.fn_decl();
             match try_fn {
                 Ok(fn_def) => fns.push(fn_def),
-                Err(e) => {
+                Err(_e) => {
                     self.reset_to(position)?;
                     vars.push(self.var_decl()?);
                     self.compare(TokenType::Semicol)?;
@@ -104,7 +104,12 @@ impl Parser {
         }
 
         self.compare(TokenType::RightBrac)?;
-        let body = self.block_statement()?;
+        let body = if self.top().tok != TokenType::Semicol {
+            Some(self.block_statement()?)
+        } else {
+            self.compare(TokenType::Semicol)?;
+            None
+        };
 
         let header = FnDeclType {
             name,
