@@ -428,12 +428,18 @@ impl TypecheckAst<Statement> for Statement {
 
 impl TypecheckAst<FnDef> for FnDef {
     fn typecheck(&self, data: &mut TypeData) -> Result<FnDef, FrontendError> {
+        let f_ret = data.translate_type(self.header.ret_type.clone())?;
+        
+        if !f_ret.sized() {
+            return Err(TypeError::TypeIsNotSized.into());
+        }
+
         if let Ok(t) = data.get_ident_type(&self.value.header.name) {
             match t {
                 TypeDef::Function(f_type)
                     if !f_type.body_def
                         && f_type.params.len() == self.header.params.len()
-                        && *f_type.ret_type == self.header.ret_type.clone() =>
+                        && *f_type.ret_type == f_ret =>
                 {
                     for i in 0..f_type.params.len() {
                         if f_type.params[i] != self.header.params[i].1 {
@@ -736,5 +742,7 @@ mod tests {
         type_err("struct A; A f() {}");
         type_ok("struct A {} A v;");
         type_err("struct A; A v;");
+        type_err("struct A { A a; }");
+        type_ok("struct A { A * a; }");
     }
 }

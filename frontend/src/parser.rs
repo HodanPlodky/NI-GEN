@@ -84,6 +84,7 @@ impl Parser {
         self.compare(Keyword::Struct.into())?;
         let name = self.get_ident()?;
 
+        self.type_names.insert(name.clone());
         let fields = if self.top().tok == TokenType::Semicol {
             self.pop();
             None
@@ -103,7 +104,6 @@ impl Parser {
             self.compare(TokenType::RightCurly)?;
             Some(vars)
         };
-        self.type_names.insert(name.clone());
 
         let res = StructDefType { name, fields };
         let res = StructDef::new(res, data);
@@ -572,7 +572,7 @@ impl Parser {
         }
     }
 
-    fn type_parse(&mut self) -> Result<TypeDef, FrontendError> {
+    fn base_type(&mut self) -> Result<TypeDef, FrontendError> {
         if let TokenType::Ident(name) = self.top().tok {
             if self.type_names.contains(&name) {
                 self.pop();
@@ -580,13 +580,16 @@ impl Parser {
             }
         }
 
-        let mut t = match self.pop().tok {
+        match self.pop().tok {
             TokenType::Kw(Keyword::Void) => Ok(TypeDef::Void),
             TokenType::Kw(Keyword::Int) => Ok(TypeDef::PrimType(PrimType::Int)),
             TokenType::Kw(Keyword::Char) => Ok(TypeDef::PrimType(PrimType::Char)),
-            t => Err(ParserError::InvalidType(t)),
-        }?;
+            t => Err(ParserError::InvalidType(t).into()),
+        }
+    }
 
+    fn type_parse(&mut self) -> Result<TypeDef, FrontendError> {
+        let mut t = self.base_type()?;
         while self.top().tok == Operator::Mul.into() {
             self.pop();
             t = TypeDef::PointerType(Box::new(t));
