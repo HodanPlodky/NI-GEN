@@ -429,7 +429,7 @@ impl TypecheckAst<Statement> for Statement {
 impl TypecheckAst<FnDef> for FnDef {
     fn typecheck(&self, data: &mut TypeData) -> Result<FnDef, FrontendError> {
         let f_ret = data.translate_type(self.header.ret_type.clone())?;
-        
+
         if !f_ret.sized() {
             return Err(TypeError::TypeIsNotSized.into());
         }
@@ -455,14 +455,21 @@ impl TypecheckAst<FnDef> for FnDef {
                 }
             }
         }
-        let t: FnType = self.clone().into();
-        let header = self.header.typed(TypeDef::Void);
+
+        let mut header = self.header.typed(TypeDef::Void);
+        header.ret_type = f_ret;
+        let mut translated_params: Vec<(String, TypeDef)> = vec![];
+        for (name, var_type) in header.params.iter() {
+            translated_params.push((name.clone(), data.translate_type(var_type.clone())?));
+        }
+        header.params = translated_params;
+        let t: FnType = header.clone().into();
 
         data.add_force(&self.value.header.name, t.into())?;
 
         let body = if let Some(body) = self.value.body.clone() {
             data.push_fn(header.ret_type.clone());
-            for (name, var_type) in self.value.header.value.params.iter() {
+            for (name, var_type) in header.params.iter() {
                 data.add_var(name, var_type.clone())?;
             }
             let body = body.typecheck(data)?;
@@ -545,7 +552,7 @@ mod tests {
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse().unwrap();
         let typed = type_program(res);
-        //println!("{:?}", typed);
+        println!("{:?}", typed);
         assert!(typed.is_ok());
     }
 
@@ -744,5 +751,16 @@ mod tests {
         type_err("struct A; A v;");
         type_err("struct A { A a; }");
         type_ok("struct A { A * a; }");
+        type_ok("struct A; A* a;");
+        type_err("struct Foo {} Foo main(Foo argc) { return ++argc; }");
+        type_ok("struct Foo; struct Foo { int i; } void main(Foo x) {}");
+        type_ok("struct A {} A f() { A a; return a; }");
+        type_ok("struct A {} struct B { A a; } ");
+        type_err("struct B; struct A { B b; } struct B { A a; } ");
+        type_ok("struct B; struct A { B * b; } struct B { A a; } ");
+        type_ok("struct A {} A f(A a) { return a; }");
+        type_ok("struct A {} A g() { A a; return a; } void f() { A a = g(); }");
+        type_ok("struct A {} A g() { A a; return a; } A f() { return g(); }");
+        type_err("struct A {} struct B {} A g() { A a; return a; } B f() { return g(); }");
     }
 }
