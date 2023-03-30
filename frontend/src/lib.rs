@@ -8,6 +8,7 @@ mod ast;
 mod errors;
 mod lexer;
 mod parser;
+mod typeast;
 mod typecheck;
 
 pub fn parse(input: String, filename: String) -> Result<Program, FrontendError> {

@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, PrimType, Program,
-        Statement, StatementType, StructDef, StructDefType, TopLevel, TypeDef, Val, VarDecl,
-        VarDeclType,
+        AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, Program, Statement,
+        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, ParserError},
-    lexer::{Keyword, Lexer, Operator, Token, TokenType},
+    lexer::{Keyword, Lexer, Loc, Operator, Token, TokenType},
+    typeast::{ArrayType, PrimType, TypeDef},
 };
 
 pub struct Parser {
@@ -27,7 +27,7 @@ impl Parser {
         })
     }
 
-    fn reset_to(&mut self, position: usize) -> Result<(), FrontendError> {
+    fn reset_to(&mut self, position: Loc) -> Result<(), FrontendError> {
         self.lexer.reset_to(position);
         self.curr_tok = self.lexer.get_token()?;
         Ok(())
@@ -53,7 +53,7 @@ impl Parser {
     }
 
     fn act_data(&self) -> AstData {
-        AstData::new(self.top().loc())
+        AstData::new(self.top().position)
     }
 
     pub fn parse(&mut self) -> Result<Program, FrontendError> {
@@ -64,15 +64,16 @@ impl Parser {
                 items.push(TopLevel::Structure(self.struct_def()?));
             } else {
                 let position = self.top().position;
-                let try_fn = self.fn_decl();
-                match try_fn {
-                    Ok(fn_def) => items.push(TopLevel::Function(fn_def)),
-                    Err(_e) => {
-                        self.reset_to(position)?;
-                        items.push(TopLevel::Var(self.var_decl()?));
-                        self.compare(TokenType::Semicol)?;
-                    }
-                };
+                self.type_parse()?;
+                self.get_ident()?;
+                let tmp = self.top().tok;
+                self.reset_to(position)?;
+                if tmp == TokenType::LeftBrac {
+                    items.push(TopLevel::Function(self.fn_decl()?));
+                } else {
+                    items.push(TopLevel::Var(self.var_decl()?));
+                    self.compare(TokenType::Semicol)?;
+                }
             }
         }
 
@@ -280,24 +281,34 @@ impl Parser {
 
     fn var_decl(&mut self) -> Result<VarDecl, FrontendError> {
         let data = self.act_data();
-        let var_type = self.type_parse()?;
-        if let TokenType::Ident(name) = self.top().tok {
+        let mut var_type = self.type_parse()?;
+
+        let name = self.get_ident()?;
+
+        if self.top().tok == TokenType::LeftSquare {
             self.pop();
-            let init_val = if self.top().tok == Operator::Assign.into() {
-                self.pop();
-                Some(self.expr()?)
-            } else {
-                None
-            };
-            let result = VarDeclType {
-                name,
-                var_type,
-                init_val,
-            };
-            Ok(VarDecl::new(result, data))
-        } else {
-            Err(ParserError::VarDeclInvalidName.into())
+            let index = self.e9()?;
+            var_type = TypeDef::Array(ArrayType {
+                inner_type: Box::new(var_type),
+                index: Box::new(index),
+            });
+            self.compare(TokenType::RightSquare)?;
         }
+
+        let init_val = if self.top().tok == Operator::Assign.into() {
+            self.pop();
+            Some(self.expr()?)
+        } else {
+            None
+        };
+
+        let result = VarDeclType {
+            name,
+            var_type,
+            init_val,
+        };
+
+        Ok(VarDecl::new(result, data))
     }
 
     fn expr_or_vars(&mut self) -> Result<Statement, FrontendError> {
@@ -541,6 +552,11 @@ impl Parser {
                     );
                     self.compare(TokenType::RightSquare)?;
                 }
+                TokenType::Dot => {
+                    self.pop();
+                    let field = self.get_ident()?;
+                    result = Expr::new(ExprType::FieldAccess(Box::new(result), field), data)
+                }
                 _ => break,
             }
         }
@@ -664,6 +680,16 @@ mod tests {
         program_ok("struct A {int a; char b;}");
         program_err("struct A {int a = 1; char b;}");
         program_ok("struct Structure; Structure main() {}");
+        program_ok("struct Structure; Structure main() {  }");
+
+        program_ok("struct A { int a; } int main() {A a; return a.a;}");
+        program_ok("struct A { int a; } int main() {A a; return a.b;}");
+        program_ok("struct A { int a; } int main() {A a; return a.a.a;}");
+        program_ok("struct A { int a; } int main() {A a; return a.a.a + 4;}");
+        program_err("struct A { int a; } int main() {A a; return a.+;}");
+        program_err("struct A { int a; } int main() {A a; return a.1;}");
+        program_err("int main() {return a.1;}");
+        program_ok("int main() {return (1+2).a.a + 4;}");
     }
 
     #[test]
@@ -677,7 +703,8 @@ mod tests {
     }
 
     #[test]
-    fn tmp() {
-        program_ok("struct Structure; Structure main() {  }");
+    fn test_array_parser() {
+        program_ok("int main() {int * a; return a[0]; }");
+        program_ok("int main() {int a[5]; return a[0]; }");
     }
 }

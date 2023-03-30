@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, FnType, PrimType, Program, Statement,
-        StatementType, StructDef, StructDefType, TopLevel, TypeDef, Val, VarDecl, VarDeclType,
+        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType,  Program, Statement,
+        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, TypeError},
-    lexer::Operator,
+    lexer::Operator, typeast::{TypeDef, PrimType, FnType},
 };
 
 struct EnvLevel {
@@ -288,6 +288,7 @@ impl TypecheckAst<Expr> for Expr {
                 Ok(res)
             }
             ExprType::Cast(t, _) => Ok(self.typed(t.clone())),
+            ExprType::FieldAccess(_, _) => todo!(),
         }
     }
 }
@@ -762,5 +763,11 @@ mod tests {
         type_ok("struct A {} A g() { A a; return a; } void f() { A a = g(); }");
         type_ok("struct A {} A g() { A a; return a; } A f() { return g(); }");
         type_err("struct A {} struct B {} A g() { A a; return a; } B f() { return g(); }");
+    }
+
+    #[test]
+    fn array_test_typedef() {
+        type_ok("int main() {int * a; return a[0]; }");
+        type_ok("int main() {int a[5]; return a[0]; }");
     }
 }

@@ -109,25 +109,14 @@ pub enum TokenType {
     RightSquare,
     Semicol,
     Comma,
+    Dot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    row: usize,
-    col: usize,
-    pub position: usize,
+    pub position: Loc,
     file_name: String,
     pub tok: TokenType,
-}
-
-impl Token {
-    pub fn loc(&self) -> Loc {
-        Loc {
-            row: self.row,
-            col: self.col,
-            position: self.position,
-        }
-    }
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -154,16 +143,14 @@ impl Lexer {
         }
     }
 
-    pub fn reset_to(&mut self, position: usize) {
-        self.act_loc.position = position;
-        self.last_loc.position = position;
+    pub fn reset_to(&mut self, position: Loc) {
+        self.act_loc = position;
+        self.last_loc = position;
     }
 
     fn create_token(&self, tok_type: TokenType) -> Token {
         Token {
-            row: self.last_loc.row,
-            col: self.last_loc.col,
-            position: self.last_loc.position,
+            position: self.last_loc,
             file_name: self.file_name.clone(),
             tok: tok_type,
         }
@@ -188,14 +175,11 @@ impl Lexer {
     }
 
     fn next_char(&mut self) -> Result<char, LexerError> {
-        //match self.input.next() {
-        //Some(x) => {
-        //self.position += 1;
-        //Ok(x.clone())
-        //}
-        //None => Err(LexerError::UnexpectedEof),
-        //}
         if self.act_loc.position < self.input.len() {
+            if self.input[self.act_loc.position] == '\n' {
+                self.act_loc.col = 0;
+                self.act_loc.row += 1;
+            }
             self.act_loc.position += 1;
             Ok(self.input[self.act_loc.position - 1].clone())
         } else {
@@ -204,10 +188,6 @@ impl Lexer {
     }
 
     fn eof(&mut self) -> bool {
-        //match self.input.peek() {
-        //Some(_) => false,
-        //None => true,
-        //}
         self.act_loc.position >= self.input.len()
     }
 
@@ -257,6 +237,7 @@ impl Lexer {
             ';' => Ok(self.create_token(single_char(TokenType::Semicol))),
             ',' => Ok(self.create_token(single_char(TokenType::Comma))),
             '0' => Ok(self.create_token(single_char(TokenType::Int(0)))),
+            '.' => Ok(self.create_token(single_char(TokenType::Dot))),
             c if c.is_alphabetic() || c == '_' => {
                 let ident = self.ident()?;
                 Ok(self.create_token(Self::check_keyword(ident)))
@@ -350,8 +331,8 @@ mod tests {
 
     #[test]
     fn lexer_test() {
-        let input =
-            "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52++".to_string();
+        let input = "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52++"
+            .to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
 

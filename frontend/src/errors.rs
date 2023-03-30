@@ -1,6 +1,7 @@
 use crate::{
-    ast::{Expr, TypeDef},
+    ast::Expr,
     lexer::{Operator, TokenType},
+    typeast::TypeDef,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
