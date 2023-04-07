@@ -141,13 +141,36 @@ fn unary_op(
     Ok(t)
 }
 
-fn assign(left: &Expr, right: &Expr) -> Result<TypeDef, FrontendError> {
-    match (left.value.clone(), right.value.clone()) {
-        (ExprType::Ident(_), _) => (),
-        (ExprType::Deref(_), _) => (),
-        _ => return Err(TypeError::CannotAssignInto(left.clone()).into()),
+impl Expr {
+    fn assignable(&self) -> bool {
+        match &self.value {
+            ExprType::Ident(_) => {
+                if let TypeDef::Function(_) = self.get_type() {
+                    false
+                } else {
+                    true
+                }
+            }
+            ExprType::Index(arr, _) => arr.assignable(),
+            ExprType::Deref(_) => true,
+            ExprType::FieldAccess(s, _) => s.assignable(),
+            _ => false,
+        }
     }
-    Ok(TypeDef::Void)
+}
+
+fn assign(left: &Expr, right: &Expr) -> Result<TypeDef, FrontendError> {
+    if left.assignable() {
+        Ok(TypeDef::Void)
+    } else {
+        Err(TypeError::CannotAssignInto(left.clone()).into())
+    }
+    //match (left.value.clone(), right.value.clone()) {
+    //(ExprType::Ident(_), _) => (),
+    //(ExprType::Deref(_), _) => (),
+    //_ => return Err(TypeError::CannotAssignInto(left.clone()).into()),
+    //}
+    //Ok(TypeDef::Void)
 }
 
 fn binary_op(
@@ -312,8 +335,16 @@ impl TypecheckAst<Expr> for Expr {
             }
             ExprType::FieldAccess(e, field) => {
                 e.typecheck(data)?;
-                if let TypeDef::Struct(s) = e.get_type() {}
-                todo!()
+                if let TypeDef::Struct(s) = e.get_type() {
+                    if let Some(t) = s.field_type(field) {
+                        self.set_type(t);
+                        Ok(())
+                    } else {
+                        Err(TypeError::MissingField(field.clone()).into())
+                    }
+                } else {
+                    Err(TypeError::NonStructType.into())
+                }
             }
         }
     }
@@ -778,10 +809,10 @@ mod tests {
         type_err("struct A {} struct B {} A g() { A a; return a; } B f() { return g(); }");
 
         type_ok("struct A { int a; } int main() {A a; return a.a;}");
-        //type_err("struct A { int a; } int main() {A a; return a.b;}");
-        //type_err("struct A { int a; } int main() {A a; return a.a.a;}");
-        //type_ok("struct A { int a; } int main() {A a; a.a = 5; return a.a;}");
-        //type_ok("struct A { int a; } A f() {A a; return a;} int main() {f().a = 5; return a.a;}");
+        type_err("struct A { int a; } int main() {A a; return a.b;}");
+        type_err("struct A { int a; } int main() {A a; return a.a.a;}");
+        type_ok("struct A { int a; } int main() {A a; a.a = 5; return a.a;}");
+        type_err("struct A { int a; } A f() {A a; return a;} int main() {f().a = 5; return 1;}");
     }
 
     #[test]

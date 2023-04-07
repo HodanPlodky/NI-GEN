@@ -40,6 +40,8 @@ pub enum TypeError {
     CannotAssignInto(Expr),
     TypeParametrMissmatch,
     TypeIsNotSized,
+    NonStructType,
+    MissingField(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

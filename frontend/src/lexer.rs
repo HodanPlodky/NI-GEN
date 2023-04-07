@@ -176,6 +176,7 @@ impl Lexer {
 
     fn next_char(&mut self) -> Result<char, LexerError> {
         if self.act_loc.position < self.input.len() {
+            self.act_loc.col += 1;
             if self.input[self.act_loc.position] == '\n' {
                 self.act_loc.col = 0;
                 self.act_loc.row += 1;
