@@ -46,7 +46,7 @@ pub enum TypeError {
 pub enum FrontendError {
     Lexer(LexerError),
     Parser(ParserError),
-    Type(TypeError),
+    Type(Vec<TypeError>),
 }
 
 impl From<LexerError> for FrontendError {
@@ -63,6 +63,6 @@ impl From<ParserError> for FrontendError {
 
 impl From<TypeError> for FrontendError {
     fn from(e: TypeError) -> Self {
-        FrontendError::Type(e)
+        FrontendError::Type(vec![e])
     }
 }

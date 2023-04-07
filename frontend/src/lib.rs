@@ -15,6 +15,7 @@ pub fn parse(input: String, filename: String) -> Result<Program, FrontendError> 
     let lex = Lexer::new(filename, input.chars().peekable());
     let mut parser = Parser::new(lex)?;
 
-    let program = parser.parse()?;
-    type_program(program)
+    let mut program = parser.parse()?;
+    type_program(&mut program)?;
+    Ok(program)
 }
