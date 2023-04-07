@@ -64,10 +64,9 @@ pub enum TypeDef {
 
 impl TypeDef {
     pub fn is_pointer(&self) -> bool {
-        if let TypeDef::PointerType(_) = self {
-            true
-        } else {
-            false
+        match self {
+            TypeDef::PointerType(_) | TypeDef::Array(_) => true,
+            _ => false,
         }
     }
 }

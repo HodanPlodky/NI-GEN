@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType,  Program, Statement,
-        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
+        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, Program, Statement, StatementType,
+        StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, TypeError},
-    lexer::Operator, typeast::{TypeDef, PrimType, FnType},
+    lexer::Operator,
+    typeast::{FnType, PrimType, TypeDef},
 };
 
 struct EnvLevel {
@@ -262,6 +263,8 @@ impl TypecheckAst<Expr> for Expr {
                 }
                 let t = if let TypeDef::PointerType(t) = object.get_type() {
                     Ok::<TypeDef, FrontendError>(*t)
+                } else if let TypeDef::Array(arr) = object.get_type() {
+                    Ok::<TypeDef, FrontendError>(*arr.inner_type)
                 } else {
                     Err(TypeError::NonPointerDeref.into())
                 }?;
@@ -288,7 +291,12 @@ impl TypecheckAst<Expr> for Expr {
                 Ok(res)
             }
             ExprType::Cast(t, _) => Ok(self.typed(t.clone())),
-            ExprType::FieldAccess(_, _) => todo!(),
+            ExprType::FieldAccess(e, field) => {
+                let tmp = e.typecheck(data)?;
+                if let TypeDef::Struct(s) = tmp.get_type() {
+                }
+                todo!()
+            },
         }
     }
 }
@@ -504,10 +512,12 @@ impl TypecheckAst<StructDef> for StructDef {
             }),
         );
         let fields: Option<Vec<VarDecl>> = if let Some(fields) = self.fields.clone() {
+            data.push_env();
             let mut res = vec![];
             for field in fields {
                 res.push(field.typecheck(data)?);
             }
+            data.pop_env();
             Some(res)
         } else {
             None
@@ -763,6 +773,12 @@ mod tests {
         type_ok("struct A {} A g() { A a; return a; } void f() { A a = g(); }");
         type_ok("struct A {} A g() { A a; return a; } A f() { return g(); }");
         type_err("struct A {} struct B {} A g() { A a; return a; } B f() { return g(); }");
+
+        type_ok("struct A { int a; } int main() {A a; return a.a;}");
+        //type_err("struct A { int a; } int main() {A a; return a.b;}");
+        //type_err("struct A { int a; } int main() {A a; return a.a.a;}");
+        //type_ok("struct A { int a; } int main() {A a; a.a = 5; return a.a;}");
+        //type_ok("struct A { int a; } A f() {A a; return a;} int main() {f().a = 5; return a.a;}");
     }
 
     #[test]
