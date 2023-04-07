@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, Program, Statement, StatementType,
-        StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
+        Expr, ExprType, FnDecl, FnDef, Program, Statement, StatementType, StructDef, StructDefType,
+        TopLevel, Val, VarDecl,
     },
     errors::{FrontendError, TypeError},
     lexer::Operator,
@@ -130,7 +130,7 @@ fn unary_op(
     expr: &mut Box<Expr>,
     data: &mut TypeData,
 ) -> Result<TypeDef, FrontendError> {
-    expr.typecheck(data);
+    expr.typecheck(data)?;
     let t = match (op, expr.get_type()) {
         (Operator::Not, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
         (_, TypeDef::PrimType(t)) => t.into(),
@@ -159,18 +159,12 @@ impl Expr {
     }
 }
 
-fn assign(left: &Expr, right: &Expr) -> Result<TypeDef, FrontendError> {
+fn assign(left: &Expr, _right: &Expr) -> Result<TypeDef, FrontendError> {
     if left.assignable() {
         Ok(TypeDef::Void)
     } else {
         Err(TypeError::CannotAssignInto(left.clone()).into())
     }
-    //match (left.value.clone(), right.value.clone()) {
-    //(ExprType::Ident(_), _) => (),
-    //(ExprType::Deref(_), _) => (),
-    //_ => return Err(TypeError::CannotAssignInto(left.clone()).into()),
-    //}
-    //Ok(TypeDef::Void)
 }
 
 fn binary_op(
@@ -178,7 +172,6 @@ fn binary_op(
     left: &mut Box<Expr>,
     right: &mut Box<Expr>,
     data: &mut TypeData,
-    ast_data: AstData,
 ) -> Result<TypeDef, FrontendError> {
     left.typecheck(data)?;
     right.typecheck(data)?;
@@ -229,7 +222,7 @@ impl TypecheckAst<Expr> for Expr {
     fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
         match &mut self.value {
             ExprType::BinOp(op, left, right) => {
-                let t = binary_op(op.clone(), left, right, data, self.data.clone())?;
+                let t = binary_op(op.clone(), left, right, data)?;
                 self.set_type(t);
                 Ok(())
             }
@@ -819,5 +812,7 @@ mod tests {
     fn array_test_typedef() {
         type_ok("int main() {int * a; return a[0]; }");
         type_ok("int main() {int a[5]; return a[0]; }");
+        type_ok("int main() {int a[5]; a[0] = 5; return a[0];}");
+        type_err("int * f() {int a[5]; return a;} int main() {f()[0] = 5; return 1;}");
     }
 }
