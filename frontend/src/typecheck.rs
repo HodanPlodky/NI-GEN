@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDef, FnDefType, Program, Statement, StatementType,
-        StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
+        Expr, ExprType, FnDecl, FnDef, Program, Statement, StatementType, StructDef, StructDefType,
+        TopLevel, Val, VarDecl,
     },
     errors::{FrontendError, TypeError},
     lexer::Operator,
@@ -35,6 +35,7 @@ impl EnvLevel {
 pub struct TypeData {
     type_map: HashMap<String, TypeDef>,
     env: Vec<EnvLevel>,
+    errors: Vec<TypeError>,
 }
 
 impl Default for TypeData {
@@ -42,6 +43,7 @@ impl Default for TypeData {
         Self {
             type_map: HashMap::new(),
             env: vec![EnvLevel::new(None)],
+            errors: vec![],
         }
     }
 }
@@ -102,21 +104,33 @@ impl TypeData {
     fn pop_env(&mut self) {
         self.env.pop();
     }
+
+    fn create_err(&mut self, err: TypeError) {
+        self.errors.push(err);
+    }
+
+    fn throw(&self) -> Result<(), FrontendError> {
+        if self.errors.len() > 0 {
+            Err(FrontendError::Type(self.errors.clone()))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 trait TypecheckAst<T>
 where
     T: PartialEq + Eq + Clone,
 {
-    fn typecheck(&self, data: &mut TypeData) -> Result<T, FrontendError>;
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError>;
 }
 
 fn unary_op(
     op: Operator,
-    expr: Box<Expr>,
+    expr: &mut Box<Expr>,
     data: &mut TypeData,
-) -> Result<(Expr, TypeDef), FrontendError> {
-    let expr = expr.typecheck(data)?;
+) -> Result<TypeDef, FrontendError> {
+    expr.typecheck(data)?;
     let t = match (op, expr.get_type()) {
         (Operator::Not, TypeDef::PrimType(PrimType::Int)) => PrimType::Int.into(),
         (_, TypeDef::PrimType(t)) => t.into(),
@@ -124,27 +138,43 @@ fn unary_op(
         _ => return Err(TypeError::InvalidOperation(op).into()),
     };
 
-    Ok((expr, t))
+    Ok(t)
 }
 
-fn assign(left: &Expr, right: &Expr) -> Result<TypeDef, FrontendError> {
-    match (left.value.clone(), right.value.clone()) {
-        (ExprType::Ident(_), _) => (),
-        (ExprType::Deref(_), _) => (),
-        _ => return Err(TypeError::CannotAssignInto(left.clone()).into()),
+impl Expr {
+    fn assignable(&self) -> bool {
+        match &self.value {
+            ExprType::Ident(_) => {
+                if let TypeDef::Function(_) = self.get_type() {
+                    false
+                } else {
+                    true
+                }
+            }
+            ExprType::Index(arr, _) => arr.assignable(),
+            ExprType::Deref(_) => true,
+            ExprType::FieldAccess(s, _) => s.assignable(),
+            _ => false,
+        }
     }
-    Ok(TypeDef::Void)
+}
+
+fn assign(left: &Expr, _right: &Expr) -> Result<TypeDef, FrontendError> {
+    if left.assignable() {
+        Ok(TypeDef::Void)
+    } else {
+        Err(TypeError::CannotAssignInto(left.clone()).into())
+    }
 }
 
 fn binary_op(
     op: Operator,
-    left: Box<Expr>,
-    right: Box<Expr>,
+    left: &mut Box<Expr>,
+    right: &mut Box<Expr>,
     data: &mut TypeData,
-    ast_data: AstData,
-) -> Result<Expr, FrontendError> {
-    let left = left.typecheck(data)?;
-    let right = right.typecheck(data)?;
+) -> Result<TypeDef, FrontendError> {
+    left.typecheck(data)?;
+    right.typecheck(data)?;
     if !((left.get_type() == right.get_type())
         || (op == Operator::Add
             && left.get_type().is_pointer()
@@ -185,44 +215,49 @@ fn binary_op(
         _ => return Err(TypeError::BinaryOperatorError.into()),
     };
 
-    let res = ExprType::BinOp(op, Box::new(left), Box::new(right));
-    let res = Expr::new(res, ast_data).typed(t);
-    Ok(res)
+    Ok(t)
 }
 
 impl TypecheckAst<Expr> for Expr {
-    fn typecheck(&self, data: &mut TypeData) -> Result<Expr, FrontendError> {
-        match &self.value {
-            ExprType::BinOp(op, left, right) => binary_op(
-                op.clone(),
-                left.clone(),
-                right.clone(),
-                data,
-                self.data.clone(),
-            ),
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
+        match &mut self.value {
+            ExprType::BinOp(op, left, right) => {
+                let t = binary_op(op.clone(), left, right, data)?;
+                self.set_type(t);
+                Ok(TypeDef::Void)
+            }
+
             ExprType::UnaryPreOp(op, e) => {
-                let (e, t) = unary_op(op.clone(), e.clone(), data)?;
-                let res = ExprType::UnaryPreOp(op.clone(), Box::new(e));
-                let res = Expr::new(res, self.data.clone()).typed(t);
-                Ok(res)
+                let t = unary_op(op.clone(), e, data)?;
+                self.set_type(t);
+                Ok(TypeDef::Void)
             }
+
             ExprType::UnaryPostOp(op, e) => {
-                let (e, t) = unary_op(op.clone(), e.clone(), data)?;
-                let res = ExprType::UnaryPostOp(op.clone(), Box::new(e));
-                let res = Expr::new(res, self.data.clone()).typed(t);
-                Ok(res)
+                let t = unary_op(op.clone(), e, data)?;
+                self.set_type(t);
+                Ok(TypeDef::Void)
             }
+
             ExprType::Value(v) => match v {
-                Val::Integer(_) => Ok(self.typed(PrimType::Int.into())),
-                Val::Char(_) => Ok(self.typed(PrimType::Char.into())),
+                Val::Integer(_) => {
+                    self.set_type(PrimType::Int.into());
+                    Ok(TypeDef::Void)
+                }
+                Val::Char(_) => {
+                    self.set_type(PrimType::Char.into());
+                    Ok(TypeDef::Void)
+                }
             },
+
             ExprType::Ident(ident) => {
                 let t = data.get_ident_type(ident)?;
-                Ok(self.typed(t))
+                self.set_type(t);
+                Ok(TypeDef::Void)
             }
+
             ExprType::Call(func, params) => {
-                let func = func.typecheck(data)?;
-                let mut typed_par: Vec<Expr> = vec![];
+                func.typecheck(data)?;
 
                 let fn_type = if let TypeDef::Function(fn_type) = func.get_type() {
                     Ok::<FnType, FrontendError>(fn_type)
@@ -239,25 +274,23 @@ impl TypecheckAst<Expr> for Expr {
                 }
 
                 for i in 0..params.len() {
-                    let tmp = params[i].typecheck(data)?;
-                    if tmp.get_type() != fn_type.params[i] {
+                    params[i].typecheck(data)?;
+                    if params[i].get_type() != fn_type.params[i] {
                         return Err(TypeError::WrongParamType(
                             fn_type.params[i].clone(),
-                            tmp.get_type(),
+                            params[i].get_type(),
                         )
                         .into());
                     }
-                    typed_par.push(tmp);
                 }
+                self.set_type(*fn_type.ret_type);
 
-                let res = ExprType::Call(Box::new(func), typed_par);
-                let res = Expr::new(res, self.data.clone()).typed(*fn_type.ret_type);
-
-                Ok(res)
+                Ok(TypeDef::Void)
             }
+
             ExprType::Index(object, index) => {
-                let object = object.typecheck(data)?;
-                let index = index.typecheck(data)?;
+                object.typecheck(data)?;
+                index.typecheck(data)?;
                 if index.get_type() != PrimType::Int.into() {
                     return Err(TypeError::IndexMustBeInteger.into());
                 }
@@ -268,41 +301,50 @@ impl TypecheckAst<Expr> for Expr {
                 } else {
                     Err(TypeError::NonPointerDeref.into())
                 }?;
-                let res = ExprType::Index(Box::new(object), Box::new(index));
-                let res = Expr::new(res, self.data.clone()).typed(t);
-                Ok(res)
+                self.set_type(t);
+                Ok(TypeDef::Void)
             }
+
             ExprType::Deref(e) => {
-                let tmp = e.typecheck(data)?;
-                let t = if let TypeDef::PointerType(t) = tmp.get_type() {
+                e.typecheck(data)?;
+                let t = if let TypeDef::PointerType(t) = e.get_type() {
                     Ok::<Box<TypeDef>, FrontendError>(t)
                 } else {
                     Err(TypeError::NonPointerDeref.into())
                 }?;
-                let res = ExprType::Deref(Box::new(tmp));
-                let res = Expr::new(res, self.data.clone()).typed(*t);
-                Ok(res)
+                self.set_type(*t);
+                Ok(TypeDef::Void)
             }
             ExprType::Address(e) => {
-                let tmp = e.typecheck(data)?;
-                let res = ExprType::Address(Box::new(tmp.clone()));
-                let res = Expr::new(res, self.data.clone())
-                    .typed(TypeDef::PointerType(Box::new(tmp.get_type())));
-                Ok(res)
+                e.typecheck(data)?;
+                let t = e.get_type();
+                self.set_type(TypeDef::PointerType(Box::new(t)));
+                Ok(TypeDef::Void)
             }
-            ExprType::Cast(t, _) => Ok(self.typed(t.clone())),
+            ExprType::Cast(t, _) => {
+                let t = t.clone();
+                self.set_type(t);
+                Ok(TypeDef::Void)
+            }
             ExprType::FieldAccess(e, field) => {
-                let tmp = e.typecheck(data)?;
-                if let TypeDef::Struct(s) = tmp.get_type() {
+                e.typecheck(data)?;
+                if let TypeDef::Struct(s) = e.get_type() {
+                    if let Some(t) = s.field_type(field) {
+                        self.set_type(t);
+                        Ok(TypeDef::Void)
+                    } else {
+                        Err(TypeError::MissingField(field.clone()).into())
+                    }
+                } else {
+                    Err(TypeError::NonStructType.into())
                 }
-                todo!()
-            },
+            }
         }
     }
 }
 
 impl TypecheckAst<VarDecl> for VarDecl {
-    fn typecheck(&self, data: &mut TypeData) -> Result<VarDecl, FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let t = self.var_type.clone();
         let t = data.translate_type(t)?;
 
@@ -311,124 +353,126 @@ impl TypecheckAst<VarDecl> for VarDecl {
         }
 
         data.add_var(&self.name, t.clone())?;
+        let name = self.value.name.clone();
+        if let Some(init) = &mut self.init_val {
+            init.typecheck(data)?;
 
-        if let Some(x) = self.init_val.clone() {
-            let v_data = self.data.clone();
-            let init_t = x.typecheck(data)?;
-
-            if init_t.get_type() != t {
-                return Err(TypeError::VariableTypeError(
-                    self.value.name.clone(),
-                    t,
-                    init_t.data.node_type.unwrap(),
-                )
-                .into());
+            if init.get_type() != t {
+                return Err(TypeError::VariableTypeError(name, t, init.get_type()).into());
             }
 
-            let res = VarDeclType {
-                name: self.name.clone(),
-                init_val: Some(init_t),
-                var_type: self.var_type.clone(),
-            };
-            Ok(VarDecl::new(res, v_data).typed(TypeDef::Void))
+            self.set_type(TypeDef::Void);
         } else {
-            Ok(self.typed(TypeDef::Void))
+            self.set_type(TypeDef::Void);
         }
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<Statement> for Statement {
-    fn typecheck(&self, data: &mut TypeData) -> Result<Statement, FrontendError> {
-        match &self.value {
-            StatementType::Expr(e) => Ok(e.typecheck(data)?.into()),
-            StatementType::VarDecl(v) => Ok(v.typecheck(data)?.into()),
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
+        match &mut self.value {
+            StatementType::Expr(e) => {
+                e.typecheck(data)?;
+                let t = e.get_type();
+                self.set_type(t);
+                Ok(TypeDef::Void)
+            }
+            StatementType::VarDecl(v) => {
+                v.typecheck(data)?;
+                let t = v.get_type();
+                self.set_type(t);
+                Ok(TypeDef::Void)
+            }
             StatementType::Block(stmts) => {
-                let mut n_stms = vec![];
+                let mut ret_type = TypeDef::Void;
                 data.push_env();
                 for s in stmts {
-                    n_stms.push(s.typecheck(data)?);
+                    ret_type = s.typecheck(data)?;
                 }
                 data.pop_env();
-                let res = StatementType::Block(n_stms);
-                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                Ok(res)
+                self.set_type(TypeDef::Void);
+                Ok(ret_type)
             }
             StatementType::If(cond, then_body) => {
-                let cond = cond.typecheck(data)?;
+                cond.typecheck(data)?;
                 if cond.get_type() != PrimType::Int.into() {
                     return Err(TypeError::ConditionMustBeInt.into());
                 }
                 data.push_env();
-                let then_body = then_body.typecheck(data)?;
+                then_body.typecheck(data)?;
                 data.pop_env();
-                let res = StatementType::If(cond, Box::new(then_body));
-                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                Ok(res)
+                self.set_type(TypeDef::Void);
+                Ok(TypeDef::Void)
             }
             StatementType::IfElse(cond, then_body, else_body) => {
-                let cond = cond.typecheck(data)?;
+                cond.typecheck(data)?;
                 if cond.get_type() != PrimType::Int.into() {
                     return Err(TypeError::ConditionMustBeInt.into());
                 }
                 data.push_env();
-                let then_body = then_body.typecheck(data)?;
+                let then_ret = then_body.typecheck(data)?;
                 data.pop_env();
                 data.push_env();
-                let else_body = else_body.typecheck(data)?;
+                let else_ret = else_body.typecheck(data)?;
                 data.pop_env();
-                let res = StatementType::IfElse(cond, Box::new(then_body), Box::new(else_body));
-                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                Ok(res)
+                self.set_type(TypeDef::Void);
+
+                if then_ret == else_ret {
+                    Ok(then_ret)
+                } else {
+                    Ok(TypeDef::Void)
+                }
             }
             StatementType::For(init, cond, update, body) => {
-                let init = match init.clone().map(|x| x.typecheck(data)) {
-                    Some(Err(e)) => return Err(e),
-                    Some(Ok(init)) => Some(Box::new(init)),
-                    None => None,
-                };
-                let cond = match cond.clone().map(|x| x.typecheck(data)) {
-                    Some(Err(e)) => return Err(e),
-                    Some(Ok(init)) if init.get_type() == PrimType::Int.into() => Some(init),
-                    Some(Ok(_)) => return Err(TypeError::ConditionMustBeInt.into()),
-                    None => None,
-                };
-                let update = match update.clone().map(|x| x.typecheck(data)) {
-                    Some(Err(e)) => return Err(e),
-                    Some(Ok(init)) => Some(init),
-                    None => None,
-                };
-                let body = body.typecheck(data)?;
-                let res = StatementType::For(init, cond, update, Box::new(body));
-                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                Ok(res)
+                if let Some(init) = init {
+                    init.typecheck(data)?;
+                }
+                if let Some(cond) = cond {
+                    cond.typecheck(data)?;
+                    if cond.get_type() != PrimType::Int.into() {
+                        return Err(TypeError::ConditionMustBeInt.into());
+                    }
+                }
+                if let Some(update) = update {
+                    update.typecheck(data)?;
+                }
+                body.typecheck(data)?;
+                self.set_type(TypeDef::Void);
+                Ok(TypeDef::Void)
             }
             StatementType::While(cond, body) => {
-                let cond = cond.typecheck(data)?;
+                cond.typecheck(data)?;
                 if cond.get_type() != PrimType::Int.into() {
                     return Err(TypeError::ConditionMustBeInt.into());
                 }
                 data.push_env();
-                let body = body.typecheck(data)?;
+                body.typecheck(data)?;
                 data.pop_env();
-                let res = StatementType::While(cond, Box::new(body));
-                let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                Ok(res)
+                self.set_type(TypeDef::Void);
+                Ok(TypeDef::Void)
             }
-            StatementType::Break | StatementType::Continue => Ok(self.typed(TypeDef::Void)),
+            StatementType::Break | StatementType::Continue => {
+                self.set_type(TypeDef::Void);
+                Ok(TypeDef::Void)
+            }
             StatementType::Return(e) => match (e, data.ret()) {
-                (None, None) => Ok(self.typed(TypeDef::Void)),
+                (None, None) => {
+                    self.set_type(TypeDef::Void);
+                    Ok(TypeDef::Void)
+                }
                 (None, Some(_)) => Err(TypeError::ExpectingRet.into()),
                 (Some(_), None) => Err(TypeError::UnexpectedRet.into()),
                 (Some(res), Some(exp)) => {
-                    let res_typed = res.typecheck(data)?;
+                    res.typecheck(data)?;
 
-                    if res_typed.data.node_type != Some(exp.clone()) {
-                        return Err(TypeError::ReturnTypeError(res_typed.get_type(), exp).into());
+                    if res.data.node_type != Some(exp.clone()) {
+                        return Err(TypeError::ReturnTypeError(res.get_type(), exp).into());
                     }
 
-                    let res = StatementType::Return(Some(Box::new(res_typed)));
-                    let res = Statement::new(res, self.data.clone()).typed(TypeDef::Void);
-                    return Ok(res);
+                    let ret_type = res.get_type().clone();
+                    self.set_type(TypeDef::Void);
+                    Ok(ret_type)
                 }
             },
         }
@@ -436,7 +480,7 @@ impl TypecheckAst<Statement> for Statement {
 }
 
 impl TypecheckAst<FnDef> for FnDef {
-    fn typecheck(&self, data: &mut TypeData) -> Result<FnDef, FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let f_ret = data.translate_type(self.header.ret_type.clone())?;
 
         if !f_ret.sized() {
@@ -465,45 +509,48 @@ impl TypecheckAst<FnDef> for FnDef {
             }
         }
 
-        let mut header = self.header.typed(TypeDef::Void);
-        header.ret_type = f_ret;
+        self.header.typed(TypeDef::Void);
+        self.header.ret_type = f_ret;
         let mut translated_params: Vec<(String, TypeDef)> = vec![];
-        for (name, var_type) in header.params.iter() {
+        for (name, var_type) in self.header.params.iter() {
             translated_params.push((name.clone(), data.translate_type(var_type.clone())?));
         }
-        header.params = translated_params;
-        let t: FnType = header.clone().into();
+        self.header.params = translated_params;
+        let t: FnType = self.header.clone().into();
 
         data.add_force(&self.value.header.name, t.into())?;
 
-        let body = if let Some(body) = self.value.body.clone() {
-            data.push_fn(header.ret_type.clone());
-            for (name, var_type) in header.params.iter() {
-                data.add_var(name, var_type.clone())?;
+        let ret_type = self.header.ret_type.clone();
+        let params = self.header.params.clone();
+        if let Some(body) = &mut self.value.body {
+            data.push_fn(ret_type);
+            for (name, var_type) in params {
+                data.add_var(&name, var_type.clone())?;
             }
-            let body = body.typecheck(data)?;
+            let ret_type = body.typecheck(data)?;
             data.pop_env();
-            Some(body)
-        } else {
-            None
-        };
 
-        let res = FnDefType { header, body };
-        let res = FnDef::new(res, self.data.clone()).typed(TypeDef::Void);
-        Ok(res)
+            if ret_type != self.header.ret_type {
+                return Err(TypeError::ExpectingRet.into());
+            }
+        }
+
+        self.set_type(TypeDef::Void);
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<FnDecl> for FnDecl {
-    fn typecheck(&self, data: &mut TypeData) -> Result<FnDecl, FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let t: FnType = self.clone().into();
         data.add_var(&self.name, t.into())?;
-        Ok(self.typed(TypeDef::Void))
+        self.set_type(TypeDef::Void);
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<StructDef> for StructDef {
-    fn typecheck(&self, data: &mut TypeData) -> Result<StructDef, FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         data.add_type(
             &self.name,
             TypeDef::Struct(StructDefType {
@@ -511,46 +558,37 @@ impl TypecheckAst<StructDef> for StructDef {
                 fields: None,
             }),
         );
-        let fields: Option<Vec<VarDecl>> = if let Some(fields) = self.fields.clone() {
+        if let Some(fields) = &mut self.fields {
             data.push_env();
-            let mut res = vec![];
             for field in fields {
-                res.push(field.typecheck(data)?);
+                field.typecheck(data)?;
             }
             data.pop_env();
-            Some(res)
-        } else {
-            None
-        };
-        let res = StructDefType {
-            name: self.name.clone(),
-            fields,
-        };
-        data.add_type(&self.name, TypeDef::Struct(res.clone()));
-        let res = StructDef::new(res, self.data.clone());
-        Ok(res)
+        }
+        data.add_type(&self.name, TypeDef::Struct(self.value.clone()));
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<TopLevel> for TopLevel {
-    fn typecheck(&self, data: &mut TypeData) -> Result<TopLevel, FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         match self {
-            TopLevel::Function(f) => Ok(TopLevel::Function(f.typecheck(data)?)),
-            TopLevel::Var(v) => Ok(TopLevel::Var(v.typecheck(data)?)),
-            TopLevel::Structure(s) => Ok(TopLevel::Structure(s.typecheck(data)?)),
-        }
+            TopLevel::Function(f) => f.typecheck(data)?,
+            TopLevel::Var(v) => v.typecheck(data)?,
+            TopLevel::Structure(s) => s.typecheck(data)?,
+        };
+        Ok(TypeDef::Void)
     }
 }
 
-pub fn type_program(program: Program) -> Result<Program, FrontendError> {
+pub fn type_program(program: &mut Program) -> Result<(), FrontendError> {
     let mut data = TypeData::default();
-    let mut res: Program = Program::default();
 
-    for item in program.items {
-        res.items.push(item.typecheck(&mut data)?);
+    for i in 0..program.items.len() {
+        program.items[i].typecheck(&mut data)?;
     }
 
-    Ok(res)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -561,27 +599,27 @@ mod tests {
     fn type_ok(input: &str) {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
-        let res = parser.parse().unwrap();
-        let typed = type_program(res);
-        println!("{:?}", typed);
-        assert!(typed.is_ok());
+        let mut res = parser.parse().unwrap();
+        let tmp = type_program(&mut res);
+        println!("{:?}", tmp);
+        assert!(tmp.is_ok());
     }
 
     fn type_err(input: &str) {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
-        let res = parser.parse().unwrap();
-        let typed = type_program(res);
-        //println!("{:?}", typed);
-        assert!(typed.is_err());
+        let mut res = parser.parse().unwrap();
+        let tmp = type_program(&mut res);
+        println!("{:?}", res);
+        assert!(tmp.is_err());
     }
 
     #[test]
     fn basic_test_typedef() {
-        type_ok("int main() {}");
+        type_ok("void main() {}");
         type_ok("int main() {return 1;}");
-        type_ok("int main() {int x = 5;}");
-        type_err("int main() {int x = 5; char x;}");
+        type_ok("void main() {int x = 5;}");
+        type_err("void main() {int x = 5; char x;}");
         type_ok("int main() {int x = 5; return x;}");
         type_err("char main() {int x = 5; return x;}");
         type_ok("int a; int main() {return a;}");
@@ -591,25 +629,25 @@ mod tests {
 
     #[test]
     fn block_test_typedef() {
-        type_ok("int main() {int x; {int y = x;}}");
+        type_ok("void main() {int x; {int y = x;}}");
         type_ok("int main() {int x; {int z = x;{int y = z; return z;}}}");
         type_err("int main() {char x; {char z = x;{char y = z; return z;}}}");
-        type_err("int main() {{int y = x;} int x;}");
+        type_err("void main() {{int y = x;} int x;}");
         type_err("int main() {{int y = 5;} return y;}");
     }
 
     #[test]
     fn flow_test_typedef() {
-        type_ok("int main() { if (1) return 1;  }");
-        type_ok("int main() { if (0) return 1;  }");
-        type_ok("int main() { while (0) return 1;  }");
-        type_ok("int main() { int x = 5; while (x) return 1;  }");
-        type_err("int main() { char x = 5; while (x) return 1;  }");
+        type_ok("int main() { if (1) return 1; return 2; }");
+        type_ok("int main() { if (0) return 1; return 2; }");
+        type_ok("int main() { while (0) return 1; return 2; }");
+        type_ok("int main() { int x = 5; while (x) return 1; return 2; }");
+        type_err("int main() { char x = 5; while (x) return 1; return 2; }");
         type_ok("int main() { if(1) { int x; } return 1;}");
         type_err("int main() { if(1) int x; return x;}");
-        type_ok("int main() { if(1) int x; else int x;}");
+        type_ok("void main() { if(1) int x; else int x;}");
         type_err("int main() { if(1) int x; else int x; return x;}");
-        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
+        type_ok("int main() { for (int i = 5; i < 10; i++) return 1; return 2;}");
         type_ok(
             "
             int main() { 
@@ -628,8 +666,8 @@ mod tests {
     #[test]
     fn index_test_typedef() {
         type_ok("int main() { int * x; return x[0]; }");
-        type_ok("char * f() {} char main() { return f()[1]; }");
-        type_err("int f() {} int main() { return f()[0]; }");
+        type_ok("char * f(); char main() { return f()[1]; }");
+        type_err("int f(); int main() { return f()[0]; }");
         type_err("int main() { int * x; return x[x]; }");
         type_err("int main() { char * x; return x[x]; }");
         type_err("int main() { char * x; return x[0]; }");
@@ -639,8 +677,8 @@ mod tests {
     fn cast_test_typedef() {
         type_ok("int main() { char * x; return cast<int>(x[0]); }");
         type_ok("char main() { char * x; return x[cast<int>(x)]; }");
-        type_ok("int f() {} char main() { return cast<char>(f); }");
-        type_err("int f() {} char main() { return f; }");
+        type_ok("void f() {} char main() { return cast<char>(f); }");
+        type_err("void f() {} char main() { return f; }");
     }
 
     #[test]
@@ -755,9 +793,9 @@ mod tests {
 
     #[test]
     fn struct_test_typedef() {
-        type_ok("struct A; int main() {}");
-        type_ok("struct A {} A f() {}");
-        type_err("struct A; A f() {}");
+        type_ok("struct A; void main() {}");
+        type_ok("struct A {} A f() {A a; return a;}");
+        type_err("struct A; A f();");
         type_ok("struct A {} A v;");
         type_err("struct A; A v;");
         type_err("struct A { A a; }");
@@ -775,15 +813,27 @@ mod tests {
         type_err("struct A {} struct B {} A g() { A a; return a; } B f() { return g(); }");
 
         type_ok("struct A { int a; } int main() {A a; return a.a;}");
-        //type_err("struct A { int a; } int main() {A a; return a.b;}");
-        //type_err("struct A { int a; } int main() {A a; return a.a.a;}");
-        //type_ok("struct A { int a; } int main() {A a; a.a = 5; return a.a;}");
-        //type_ok("struct A { int a; } A f() {A a; return a;} int main() {f().a = 5; return a.a;}");
+        type_err("struct A { int a; } int main() {A a; return a.b;}");
+        type_err("struct A { int a; } int main() {A a; return a.a.a;}");
+        type_ok("struct A { int a; } int main() {A a; a.a = 5; return a.a;}");
+        type_err("struct A { int a; } A f() {A a; return a;} int main() {f().a = 5; return 1;}");
     }
 
     #[test]
     fn array_test_typedef() {
         type_ok("int main() {int * a; return a[0]; }");
         type_ok("int main() {int a[5]; return a[0]; }");
+        type_ok("int main() {int a[5]; a[0] = 5; return a[0];}");
+        type_err("int * f() {int a[5]; return a;} int main() {f()[0] = 5; return 1;}");
+    }
+
+    #[test]
+    fn return_test_typedef() {
+        type_ok("int main(int a) { return a; }");
+        type_err("int main(int a) { if (a) {return a;}  }");
+        type_ok("int main(int a) { if (a) {return a;} return 1;}");
+        type_ok("int main(int a) { if (a) {return a;} else {return 1;} }");
+        type_err("int main(int a) { while (a) {return a;}  }");
+        type_ok("int main(int a) { while (a) {return a;} return 1;}");
     }
 }

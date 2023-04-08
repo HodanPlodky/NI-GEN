@@ -195,6 +195,17 @@ pub struct StructDefType {
     pub fields: Option<Vec<VarDecl>>,
 }
 
+impl StructDefType {
+    pub fn field_type(&self, field: &String) -> Option<TypeDef> {
+        if let Some(fields) = &self.fields {
+            let f = fields.iter().find(|x| &x.name == field)?;
+            Some(f.var_type.clone())
+        } else {
+            None
+        }
+    }
+}
+
 impl TypeDef {
     pub fn sized(&self) -> bool {
         match self {
