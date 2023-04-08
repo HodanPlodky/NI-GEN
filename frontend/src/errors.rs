@@ -1,5 +1,5 @@
 use crate::{
-    ast::Expr,
+    ast::{Expr, FnDef},
     lexer::{Operator, TokenType},
     typeast::TypeDef,
 };

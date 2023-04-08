@@ -122,7 +122,7 @@ trait TypecheckAst<T>
 where
     T: PartialEq + Eq + Clone,
 {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError>;
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError>;
 }
 
 fn unary_op(
@@ -219,41 +219,41 @@ fn binary_op(
 }
 
 impl TypecheckAst<Expr> for Expr {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         match &mut self.value {
             ExprType::BinOp(op, left, right) => {
                 let t = binary_op(op.clone(), left, right, data)?;
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::UnaryPreOp(op, e) => {
                 let t = unary_op(op.clone(), e, data)?;
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::UnaryPostOp(op, e) => {
                 let t = unary_op(op.clone(), e, data)?;
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::Value(v) => match v {
                 Val::Integer(_) => {
                     self.set_type(PrimType::Int.into());
-                    Ok(())
+                    Ok(TypeDef::Void)
                 }
                 Val::Char(_) => {
                     self.set_type(PrimType::Char.into());
-                    Ok(())
+                    Ok(TypeDef::Void)
                 }
             },
 
             ExprType::Ident(ident) => {
                 let t = data.get_ident_type(ident)?;
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::Call(func, params) => {
@@ -285,7 +285,7 @@ impl TypecheckAst<Expr> for Expr {
                 }
                 self.set_type(*fn_type.ret_type);
 
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::Index(object, index) => {
@@ -302,7 +302,7 @@ impl TypecheckAst<Expr> for Expr {
                     Err(TypeError::NonPointerDeref.into())
                 }?;
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
 
             ExprType::Deref(e) => {
@@ -313,25 +313,25 @@ impl TypecheckAst<Expr> for Expr {
                     Err(TypeError::NonPointerDeref.into())
                 }?;
                 self.set_type(*t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             ExprType::Address(e) => {
                 e.typecheck(data)?;
                 let t = e.get_type();
                 self.set_type(TypeDef::PointerType(Box::new(t)));
-                Ok(())
+                Ok(TypeDef::Void)
             }
             ExprType::Cast(t, _) => {
                 let t = t.clone();
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             ExprType::FieldAccess(e, field) => {
                 e.typecheck(data)?;
                 if let TypeDef::Struct(s) = e.get_type() {
                     if let Some(t) = s.field_type(field) {
                         self.set_type(t);
-                        Ok(())
+                        Ok(TypeDef::Void)
                     } else {
                         Err(TypeError::MissingField(field.clone()).into())
                     }
@@ -344,7 +344,7 @@ impl TypecheckAst<Expr> for Expr {
 }
 
 impl TypecheckAst<VarDecl> for VarDecl {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let t = self.var_type.clone();
         let t = data.translate_type(t)?;
 
@@ -365,33 +365,34 @@ impl TypecheckAst<VarDecl> for VarDecl {
         } else {
             self.set_type(TypeDef::Void);
         }
-        Ok(())
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<Statement> for Statement {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         match &mut self.value {
             StatementType::Expr(e) => {
                 e.typecheck(data)?;
                 let t = e.get_type();
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::VarDecl(v) => {
                 v.typecheck(data)?;
                 let t = v.get_type();
                 self.set_type(t);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::Block(stmts) => {
+                let mut ret_type = TypeDef::Void;
                 data.push_env();
                 for s in stmts {
-                    s.typecheck(data)?;
+                    ret_type = s.typecheck(data)?;
                 }
                 data.pop_env();
                 self.set_type(TypeDef::Void);
-                Ok(())
+                Ok(ret_type)
             }
             StatementType::If(cond, then_body) => {
                 cond.typecheck(data)?;
@@ -402,7 +403,7 @@ impl TypecheckAst<Statement> for Statement {
                 then_body.typecheck(data)?;
                 data.pop_env();
                 self.set_type(TypeDef::Void);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::IfElse(cond, then_body, else_body) => {
                 cond.typecheck(data)?;
@@ -410,13 +411,18 @@ impl TypecheckAst<Statement> for Statement {
                     return Err(TypeError::ConditionMustBeInt.into());
                 }
                 data.push_env();
-                then_body.typecheck(data)?;
+                let then_ret = then_body.typecheck(data)?;
                 data.pop_env();
                 data.push_env();
-                else_body.typecheck(data)?;
+                let else_ret = else_body.typecheck(data)?;
                 data.pop_env();
                 self.set_type(TypeDef::Void);
-                Ok(())
+
+                if then_ret == else_ret {
+                    Ok(then_ret)
+                } else {
+                    Ok(TypeDef::Void)
+                }
             }
             StatementType::For(init, cond, update, body) => {
                 if let Some(init) = init {
@@ -433,7 +439,7 @@ impl TypecheckAst<Statement> for Statement {
                 }
                 body.typecheck(data)?;
                 self.set_type(TypeDef::Void);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::While(cond, body) => {
                 cond.typecheck(data)?;
@@ -444,16 +450,16 @@ impl TypecheckAst<Statement> for Statement {
                 body.typecheck(data)?;
                 data.pop_env();
                 self.set_type(TypeDef::Void);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::Break | StatementType::Continue => {
                 self.set_type(TypeDef::Void);
-                Ok(())
+                Ok(TypeDef::Void)
             }
             StatementType::Return(e) => match (e, data.ret()) {
                 (None, None) => {
                     self.set_type(TypeDef::Void);
-                    Ok(())
+                    Ok(TypeDef::Void)
                 }
                 (None, Some(_)) => Err(TypeError::ExpectingRet.into()),
                 (Some(_), None) => Err(TypeError::UnexpectedRet.into()),
@@ -464,8 +470,9 @@ impl TypecheckAst<Statement> for Statement {
                         return Err(TypeError::ReturnTypeError(res.get_type(), exp).into());
                     }
 
+                    let ret_type = res.get_type().clone();
                     self.set_type(TypeDef::Void);
-                    Ok(())
+                    Ok(ret_type)
                 }
             },
         }
@@ -473,7 +480,7 @@ impl TypecheckAst<Statement> for Statement {
 }
 
 impl TypecheckAst<FnDef> for FnDef {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let f_ret = data.translate_type(self.header.ret_type.clone())?;
 
         if !f_ret.sized() {
@@ -520,26 +527,30 @@ impl TypecheckAst<FnDef> for FnDef {
             for (name, var_type) in params {
                 data.add_var(&name, var_type.clone())?;
             }
-            body.typecheck(data)?;
+            let ret_type = body.typecheck(data)?;
             data.pop_env();
+
+            if ret_type != self.header.ret_type {
+                return Err(TypeError::ExpectingRet.into());
+            }
         }
 
         self.set_type(TypeDef::Void);
-        Ok(())
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<FnDecl> for FnDecl {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         let t: FnType = self.clone().into();
         data.add_var(&self.name, t.into())?;
         self.set_type(TypeDef::Void);
-        Ok(())
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<StructDef> for StructDef {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         data.add_type(
             &self.name,
             TypeDef::Struct(StructDefType {
@@ -555,18 +566,18 @@ impl TypecheckAst<StructDef> for StructDef {
             data.pop_env();
         }
         data.add_type(&self.name, TypeDef::Struct(self.value.clone()));
-        Ok(())
+        Ok(TypeDef::Void)
     }
 }
 
 impl TypecheckAst<TopLevel> for TopLevel {
-    fn typecheck(&mut self, data: &mut TypeData) -> Result<(), FrontendError> {
+    fn typecheck(&mut self, data: &mut TypeData) -> Result<TypeDef, FrontendError> {
         match self {
             TopLevel::Function(f) => f.typecheck(data)?,
             TopLevel::Var(v) => v.typecheck(data)?,
             TopLevel::Structure(s) => s.typecheck(data)?,
-        }
-        Ok(())
+        };
+        Ok(TypeDef::Void)
     }
 }
 
@@ -599,16 +610,16 @@ mod tests {
         let mut parser = Parser::new(lex).unwrap();
         let mut res = parser.parse().unwrap();
         let tmp = type_program(&mut res);
-        //println!("{:?}", typed);
+        println!("{:?}", res);
         assert!(tmp.is_err());
     }
 
     #[test]
     fn basic_test_typedef() {
-        type_ok("int main() {}");
+        type_ok("void main() {}");
         type_ok("int main() {return 1;}");
-        type_ok("int main() {int x = 5;}");
-        type_err("int main() {int x = 5; char x;}");
+        type_ok("void main() {int x = 5;}");
+        type_err("void main() {int x = 5; char x;}");
         type_ok("int main() {int x = 5; return x;}");
         type_err("char main() {int x = 5; return x;}");
         type_ok("int a; int main() {return a;}");
@@ -618,25 +629,25 @@ mod tests {
 
     #[test]
     fn block_test_typedef() {
-        type_ok("int main() {int x; {int y = x;}}");
+        type_ok("void main() {int x; {int y = x;}}");
         type_ok("int main() {int x; {int z = x;{int y = z; return z;}}}");
         type_err("int main() {char x; {char z = x;{char y = z; return z;}}}");
-        type_err("int main() {{int y = x;} int x;}");
+        type_err("void main() {{int y = x;} int x;}");
         type_err("int main() {{int y = 5;} return y;}");
     }
 
     #[test]
     fn flow_test_typedef() {
-        type_ok("int main() { if (1) return 1;  }");
-        type_ok("int main() { if (0) return 1;  }");
-        type_ok("int main() { while (0) return 1;  }");
-        type_ok("int main() { int x = 5; while (x) return 1;  }");
-        type_err("int main() { char x = 5; while (x) return 1;  }");
+        type_ok("int main() { if (1) return 1; return 2; }");
+        type_ok("int main() { if (0) return 1; return 2; }");
+        type_ok("int main() { while (0) return 1; return 2; }");
+        type_ok("int main() { int x = 5; while (x) return 1; return 2; }");
+        type_err("int main() { char x = 5; while (x) return 1; return 2; }");
         type_ok("int main() { if(1) { int x; } return 1;}");
         type_err("int main() { if(1) int x; return x;}");
-        type_ok("int main() { if(1) int x; else int x;}");
+        type_ok("void main() { if(1) int x; else int x;}");
         type_err("int main() { if(1) int x; else int x; return x;}");
-        type_ok("int main() { for (int i = 5; i < 10; i++) return 1;}");
+        type_ok("int main() { for (int i = 5; i < 10; i++) return 1; return 2;}");
         type_ok(
             "
             int main() { 
@@ -655,8 +666,8 @@ mod tests {
     #[test]
     fn index_test_typedef() {
         type_ok("int main() { int * x; return x[0]; }");
-        type_ok("char * f() {} char main() { return f()[1]; }");
-        type_err("int f() {} int main() { return f()[0]; }");
+        type_ok("char * f(); char main() { return f()[1]; }");
+        type_err("int f(); int main() { return f()[0]; }");
         type_err("int main() { int * x; return x[x]; }");
         type_err("int main() { char * x; return x[x]; }");
         type_err("int main() { char * x; return x[0]; }");
@@ -666,8 +677,8 @@ mod tests {
     fn cast_test_typedef() {
         type_ok("int main() { char * x; return cast<int>(x[0]); }");
         type_ok("char main() { char * x; return x[cast<int>(x)]; }");
-        type_ok("int f() {} char main() { return cast<char>(f); }");
-        type_err("int f() {} char main() { return f; }");
+        type_ok("void f() {} char main() { return cast<char>(f); }");
+        type_err("void f() {} char main() { return f; }");
     }
 
     #[test]
@@ -782,9 +793,9 @@ mod tests {
 
     #[test]
     fn struct_test_typedef() {
-        type_ok("struct A; int main() {}");
-        type_ok("struct A {} A f() {}");
-        type_err("struct A; A f() {}");
+        type_ok("struct A; void main() {}");
+        type_ok("struct A {} A f() {A a; return a;}");
+        type_err("struct A; A f();");
         type_ok("struct A {} A v;");
         type_err("struct A; A v;");
         type_err("struct A { A a; }");
@@ -814,5 +825,15 @@ mod tests {
         type_ok("int main() {int a[5]; return a[0]; }");
         type_ok("int main() {int a[5]; a[0] = 5; return a[0];}");
         type_err("int * f() {int a[5]; return a;} int main() {f()[0] = 5; return 1;}");
+    }
+
+    #[test]
+    fn return_test_typedef() {
+        type_ok("int main(int a) { return a; }");
+        type_err("int main(int a) { if (a) {return a;}  }");
+        type_ok("int main(int a) { if (a) {return a;} return 1;}");
+        type_ok("int main(int a) { if (a) {return a;} else {return 1;} }");
+        type_err("int main(int a) { while (a) {return a;}  }");
+        type_ok("int main(int a) { while (a) {return a;} return 1;}");
     }
 }
