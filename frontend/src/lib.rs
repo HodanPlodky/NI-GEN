@@ -4,7 +4,7 @@ use lexer::Lexer;
 use parser::Parser;
 use typecheck::type_program;
 
-mod ast;
+pub mod ast;
 mod errors;
 mod lexer;
 mod parser;
