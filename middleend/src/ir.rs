@@ -9,6 +9,7 @@ pub struct Function {
     pub blocks: Vec<BasicBlock>,
 }
 
+#[derive(Debug)]
 pub struct IrProgram {
     pub glob: BasicBlock,
     pub funcs: HashMap<String, Function>,
@@ -23,6 +24,7 @@ impl Default for IrProgram {
     }
 }
 
+#[derive(Debug)]
 pub struct IrBuilder {
     global: bool,
     act_bb: BasicBlock,
@@ -41,6 +43,7 @@ impl Default for IrBuilder {
     }
 }
 
+#[derive(Debug)]
 pub enum IrBuilderError {
     BasicBlockNotTerminated,
     NotGlobalBB,

@@ -358,9 +358,14 @@ impl Interpret {
 
 #[cfg(test)]
 mod tests {
+    use crate::{inst::Terminator, ir::IrBuilder};
+
     use super::*;
 
     #[test]
     fn basic_interpret_test() {
+        let mut builder = IrBuilder::default();
+        builder.add(InstructionType::Ret(Terminator), RegType::Void);
+        builder.set_global().unwrap();
     }
 }
