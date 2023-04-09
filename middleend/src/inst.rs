@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use frontend::ast::AstData;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -51,6 +53,18 @@ pub enum InstructionType {
     Print(Reg),
 }
 
+impl InstructionType {
+    pub fn terminator(&self) -> bool {
+        match self {
+            InstructionType::Ret(_)
+            | InstructionType::Retr(_)
+            | InstructionType::Jmp(_)
+            | InstructionType::Branch(_) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum RegType {
     Void,
@@ -69,14 +83,36 @@ pub struct BasicBlock {
 impl Default for BasicBlock {
     fn default() -> Self {
         Self {
-            instruction : vec![],
+            instruction: vec![],
         }
+    }
+}
+
+impl Deref for BasicBlock {
+    type Target = Vec<Instruction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.instruction
+    }
+}
+
+impl DerefMut for BasicBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.instruction
     }
 }
 
 impl BasicBlock {
     pub fn new(instruction: Vec<Instruction>) -> Self {
         Self { instruction }
+    }
+
+    pub fn terminated(&self) -> bool {
+        if self.is_empty() {
+            true
+        } else {
+            self.last().unwrap().data.terminator()
+        }
     }
 }
 
@@ -112,8 +148,24 @@ pub type InstUUID = (bool, usize, usize);
 pub struct Instruction {
     pub id: InstUUID,
     pub reg_type: RegType,
-    pub ast_data: AstData,
+    pub ast_data: Option<AstData>,
     pub data: InstructionType,
+}
+
+impl Instruction {
+    pub fn new(
+        id: InstUUID,
+        reg_type: RegType,
+        ast_data: Option<AstData>,
+        data: InstructionType,
+    ) -> Self {
+        Self {
+            id,
+            reg_type,
+            ast_data,
+            data,
+        }
+    }
 }
 
 impl From<Instruction> for Register {
@@ -121,4 +173,3 @@ impl From<Instruction> for Register {
         return value.id;
     }
 }
-
