@@ -46,6 +46,9 @@ pub enum InstructionType {
     Retr(TerminatorReg),
     Jmp(TerminatorJump),
     Branch(TerminatorBranch),
+
+    // instrisic
+    Print(Reg),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -58,8 +61,23 @@ pub enum RegType {
 pub type Register = InstUUID;
 pub type Symbol = String;
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BasicBlock {
     pub instruction: Vec<Instruction>,
+}
+
+impl Default for BasicBlock {
+    fn default() -> Self {
+        Self {
+            instruction : vec![],
+        }
+    }
+}
+
+impl BasicBlock {
+    pub fn new(instruction: Vec<Instruction>) -> Self {
+        Self { instruction }
+    }
 }
 
 pub type BBIndex = usize;
@@ -84,11 +102,11 @@ pub struct Terminator;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TerminatorJump(pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct TerminatorBranch(pub BBIndex, pub BBIndex);
+pub struct TerminatorBranch(pub Register, pub BBIndex, pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct TerminatorReg(pub Reg, pub BBIndex);
+pub struct TerminatorReg(pub Register);
 
-pub type InstUUID = usize;
+pub type InstUUID = (bool, usize, usize);
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Instruction {
@@ -103,3 +121,4 @@ impl From<Instruction> for Register {
         return value.id;
     }
 }
+

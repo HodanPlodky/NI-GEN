@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
+
+use frontend::typeast::TypeDef;
 
 use crate::{
     inst::{
         BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,
-        Register,
+        Register, TerminatorBranch, TerminatorJump, TerminatorReg,
     },
     ir::{Function, IrProgram},
 };
@@ -12,22 +14,34 @@ pub enum InterpretError {
     VoidRegister(Instruction),
     InvalidAddress(Value),
     OutOfBoundRead(Value),
+    InvalidCond(Value),
     OutOfBoundWrite,
     NonExistingRead(Register),
     DoubleWrite(Register),
     InvalidOp(Instruction),
+    NoMain,
     BasicBlockConti,
     Unknown,
 }
 
 pub fn run(program: IrProgram) -> Result<(), InterpretError> {
-    todo!()
+    let mut inter = Interpret::new(program, 1024);
+    inter.run()
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Value {
     Signed(i64),
     Char(u8),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Signed(val) => write!(f, "{}", val),
+            Value::Char(val) => write!(f, "{}", val.clone() as char),
+        }
+    }
 }
 
 type Addr = usize;
@@ -106,7 +120,7 @@ impl Memory {
             return Err(InterpretError::OutOfBoundWrite);
         }
         let res = self.stack.len();
-        for i in 0..amount {
+        for _ in 0..amount {
             self.stack.push(0);
         }
         Ok(Value::Signed(res as i64))
@@ -118,6 +132,7 @@ struct Interpret {
     globals: Env,
     locals: Vec<Env>,
     program: IrProgram,
+    rev_val: Option<Value>,
 }
 
 impl Interpret {
@@ -127,6 +142,7 @@ impl Interpret {
             globals: HashMap::new(),
             locals: vec![],
             program,
+            rev_val: None,
         }
     }
 
@@ -158,11 +174,28 @@ impl Interpret {
     }
 
     fn run(&mut self) -> Result<(), InterpretError> {
-        todo!()
+        let glob_block = self.program.glob.clone();
+        self.run_basicblock(&glob_block)?;
+        let main = match self.program.funcs.get(&"main".to_string()) {
+            Some(x) => Ok(x.clone()),
+            None => Err(InterpretError::NoMain),
+        }?;
+        self.locals.push(HashMap::new());
+        self.run_func(main.clone())?;
+        Ok(())
     }
 
-    fn run_func(&mut self, func: Function) -> Result<Value, InterpretError> {
-        todo!()
+    fn run_func(&mut self, func: Function) -> Result<Option<Value>, InterpretError> {
+        let mut act = &func.start;
+        loop {
+            let index = self.run_basicblock(act)?;
+            if let Some(i) = index {
+                act = &func.blocks[i];
+            } else {
+                break;
+            }
+        }
+        Ok(None)
     }
 
     fn binary_op(
@@ -207,8 +240,9 @@ impl Interpret {
 
     fn run_basicblock(&mut self, bb: &BasicBlock) -> Result<Option<BBIndex>, InterpretError> {
         let mut next = None;
+        let mut terminated = false;
         for inst in bb.instruction.iter() {
-            if next.is_some() {
+            if terminated {
                 return Err(InterpretError::BasicBlockConti);
             }
             match inst.data {
@@ -290,12 +324,43 @@ impl Interpret {
                 InstructionType::Fun(_) => todo!(),
                 InstructionType::Call(_) => todo!(),
                 InstructionType::Arg(_) => todo!(),
-                InstructionType::Ret(_) => todo!(),
-                InstructionType::Retr(_) => todo!(),
-                InstructionType::Jmp(_) => todo!(),
-                InstructionType::Branch(_) => todo!(),
+                InstructionType::Ret(_) => {
+                    terminated = true;
+                    next = None;
+                    self.rev_val = None;
+                }
+                InstructionType::Retr(TerminatorReg(reg)) => {
+                    terminated = true;
+                    next = None;
+                    self.rev_val = Some(self.get(reg)?);
+                }
+                InstructionType::Jmp(TerminatorJump(n)) => {
+                    terminated = true;
+                    next = Some(n)
+                }
+                InstructionType::Branch(TerminatorBranch(reg, ok, fail)) => {
+                    let val = match self.get(reg)? {
+                        Value::Signed(val) => Ok(if val == 0 { false } else { true }),
+                        v => Err(InterpretError::InvalidCond(v)),
+                    }?;
+                    terminated = true;
+                    next = if val { Some(ok) } else { Some(fail) }
+                }
+                InstructionType::Print(Reg(reg)) => {
+                    let val = self.get(reg)?;
+                    print!("{}", val);
+                }
             }
         }
         Ok(next)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_interpret_test() {
     }
 }
