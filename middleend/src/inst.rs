@@ -1,11 +1,10 @@
-use std::ops::Deref;
-
 use frontend::ast::AstData;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
     // basics
     Ldi(ImmI),
+    Ldc(ImmC),
     Ld(Reg),
     St(RegReg),
     Alloca(ImmI),
@@ -26,7 +25,9 @@ pub enum InstructionType {
     And(RegReg),
     Or(RegReg),
     Xor(RegReg),
-    Neg(RegReg),
+
+    // bitwise unary
+    Neg(Reg),
 
     // comparion binary
     Lt(RegReg),
@@ -47,6 +48,7 @@ pub enum InstructionType {
     Branch(TerminatorBranch),
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum RegType {
     Void,
     Int,
@@ -66,10 +68,12 @@ pub type BBIndex = usize;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmI(pub i64);
 #[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ImmC(pub char);
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmS(pub Symbol);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Reg(pub Register);
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RegReg(pub Register, pub Register);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RegRegs(pub Register, pub Vec<Register>);
@@ -86,6 +90,7 @@ pub struct TerminatorReg(pub Reg, pub BBIndex);
 
 pub type InstUUID = usize;
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Instruction {
     pub id: InstUUID,
     pub reg_type: RegType,
