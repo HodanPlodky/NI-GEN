@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fmt::Display};
 
-use frontend::typeast::TypeDef;
-
 use crate::{
     inst::{
         BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,

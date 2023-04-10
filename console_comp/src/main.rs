@@ -1,4 +1,8 @@
-use middleend::{ir::{IrBuilder, FunctionBuilder, I}, inst::{Terminator, RegType, ImmI, Reg, ImmC}, ir_interpret::run};
+use middleend::{
+    inst::{ImmC, ImmI, Reg, RegType, Terminator},
+    ir::{FunctionBuilder, IrBuilder, I},
+    ir_interpret::run,
+};
 
 fn main() {
     let mut builder = IrBuilder::default();
@@ -10,7 +14,7 @@ fn main() {
     fn_b.add(I::Print(Reg(reg_c)), RegType::Void);
     fn_b.add(I::Ret(Terminator), RegType::Void);
     builder.add_fn("main", fn_b.create()).unwrap();
-        
+
     run(builder.create()).unwrap();
     println!("Hello, world!");
 }
