@@ -10,6 +10,7 @@ use crate::{
     ir::{Function, IrProgram},
 };
 
+#[derive(Debug)]
 pub enum InterpretError {
     VoidRegister(Instruction),
     InvalidAddress(Value),
@@ -358,11 +359,24 @@ impl Interpret {
 
 #[cfg(test)]
 mod tests {
-    use crate::{inst::Terminator, ir::IrBuilder};
+    use crate::{
+        inst::Terminator,
+        ir::{FunctionBuilder, IrBuilder, I},
+    };
 
     use super::*;
 
     #[test]
     fn basic_interpret_test() {
+        let mut builder = IrBuilder::default();
+        builder.add(I::Ret(Terminator), RegType::Void);
+        let mut fn_b = FunctionBuilder::new(0, RegType::Void);
+        let reg = fn_b.add(I::Ldi(ImmI(5)), RegType::Int);
+        fn_b.add(I::Print(Reg(reg)), RegType::Void);
+        fn_b.add(I::Ret(Terminator), RegType::Void);
+        builder.add_fn("main", fn_b.create()).unwrap();
+
+        let mut inter = Interpret::new(builder.create(), 1024);
+        inter.run().unwrap();
     }
 }
