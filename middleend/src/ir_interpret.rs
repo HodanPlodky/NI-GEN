@@ -186,7 +186,7 @@ impl Interpret {
     }
 
     fn run_func(&mut self, func: Function) -> Result<Option<Value>, InterpretError> {
-        let mut act = &func.start;
+        let mut act = func.start();
         loop {
             let index = self.run_basicblock(act)?;
             if let Some(i) = index {
@@ -364,8 +364,5 @@ mod tests {
 
     #[test]
     fn basic_interpret_test() {
-        let mut builder = IrBuilder::default();
-        builder.add(InstructionType::Ret(Terminator), RegType::Void);
-        builder.set_global().unwrap();
     }
 }
