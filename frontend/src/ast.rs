@@ -1,9 +1,35 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    lexer::{Loc, Operator},
+    lexer::{Loc,},
     typeast::TypeDef,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operator {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Inc,
+    Dec,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Eql,
+    Neq,
+    Assign,
+    BitOr,
+    Or,
+    BitAnd,
+    And,
+    Not,
+    BitNot,
+    Mod,
+    ShiftLeft,
+    ShiftRight,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AstData {

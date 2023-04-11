@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use crate::{
     ast::{
         AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, Program, Statement,
-        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
+        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType, Operator,
     },
     errors::{FrontendError, ParserError},
-    lexer::{Keyword, Lexer, Loc, Operator, Token, TokenType},
+    lexer::{Keyword, Lexer, Loc, Token, TokenType},
     typeast::{ArrayType, PrimType, TypeDef},
 };
 
@@ -477,7 +477,7 @@ impl Parser {
             let data = self.act_data();
             if let TokenType::Operator(o) = self.pop().tok {
                 result = Expr::new(
-                    ExprType::BinOp(o, Box::new(result), Box::new(self.e7()?)),
+                    ExprType::BinOp(o, Box::new(result), Box::new(self.e_unary_pre()?)),
                     data,
                 );
             } else {

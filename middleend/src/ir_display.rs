@@ -1,14 +1,30 @@
 use std::fmt::Display;
 
 use crate::{
-    inst::{BasicBlock, Instruction, InstructionType, RegType, Register},
+    inst::{BasicBlock, Instruction, InstructionType, RegType, Register, ImmI, Reg, TerminatorReg, RegReg},
     ir::{Function, IrProgram},
 };
+
+fn reg_view(reg : Register) -> String {
+    if reg.0 {
+        "g(".to_string()
+            + reg.1.to_string().as_str()
+            + ","
+            + reg.2.to_string().as_str()
+            + ")"
+    } else {
+        "(".to_string()
+            + reg.1.to_string().as_str()
+            + ","
+            + reg.2.to_string().as_str()
+            + ")"
+    }
+}
 
 impl Display for InstructionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InstructionType::Ldi(_) => todo!(),
+            InstructionType::Ldi(ImmI(n)) => write!(f, "ldi {}", n),
             InstructionType::Ldc(_) => todo!(),
             InstructionType::Ld(_) => todo!(),
             InstructionType::St(_) => todo!(),
@@ -16,11 +32,11 @@ impl Display for InstructionType {
             InstructionType::Allocg(_) => todo!(),
             InstructionType::Cpy(_) => todo!(),
             InstructionType::Gep(_) => todo!(),
-            InstructionType::Add(_) => todo!(),
-            InstructionType::Sub(_) => todo!(),
-            InstructionType::Mul(_) => todo!(),
-            InstructionType::Div(_) => todo!(),
-            InstructionType::Mod(_) => todo!(),
+            InstructionType::Add(RegReg(l, r)) => write!(f, "add {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Sub(RegReg(l, r)) => write!(f, "sub {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Mul(RegReg(l, r)) => write!(f, "mul {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Div(RegReg(l, r)) => write!(f, "div {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Mod(RegReg(l, r)) => write!(f, "mod {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Shr(_) => todo!(),
             InstructionType::Shl(_) => todo!(),
             InstructionType::And(_) => todo!(),
@@ -36,7 +52,7 @@ impl Display for InstructionType {
             InstructionType::Call(_) => todo!(),
             InstructionType::Arg(_) => todo!(),
             InstructionType::Ret(_) => write!(f, "ret"),
-            InstructionType::Retr(_) => todo!(),
+            InstructionType::Retr(TerminatorReg(reg)) => write!(f, "retr {}", reg_view(*reg)),
             InstructionType::Jmp(_) => todo!(),
             InstructionType::Branch(_) => todo!(),
             InstructionType::Print(_) => todo!(),
@@ -56,20 +72,12 @@ impl Display for RegType {
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let reg_string = if self.id.0 {
-            "g(".to_string()
-                + self.id.1.to_string().as_str()
-                + ","
-                + self.id.2.to_string().as_str()
-                + ")"
+        if self.reg_type == RegType::Void {
+            write!(f, "{}", self.data)
         } else {
-            "(".to_string()
-                + self.id.1.to_string().as_str()
-                + ","
-                + self.id.2.to_string().as_str()
-                + ")"
-        };
-        write!(f, "{} : {} = {}", reg_string, self.reg_type, self.data)
+            let reg_string =  reg_view(self.id);
+            write!(f, "{} : {} = {}", reg_string, self.reg_type, self.data)
+        }
     }
 }
 
@@ -102,6 +110,7 @@ impl Display for IrProgram {
         writeln!(f, "global:")?;
         write!(f, "{}", self.glob)?;
         for func in self.funcs.values() {
+            writeln!(f, "")?;
             writeln!(f, "{}", func)?;
         }
         Ok(())

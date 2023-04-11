@@ -1,6 +1,6 @@
 use crate::{
-    ast::{Expr, FnDef},
-    lexer::{Operator, TokenType},
+    ast::{Expr, FnDef, Operator},
+    lexer::TokenType,
     typeast::TypeDef,
 };
 

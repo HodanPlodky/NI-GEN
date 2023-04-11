@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use crate::{
     ast::{
         Expr, ExprType, FnDecl, FnDef, Program, Statement, StatementType, StructDef, StructDefType,
-        TopLevel, Val, VarDecl,
+        TopLevel, Val, VarDecl, Operator,
     },
     errors::{FrontendError, TypeError},
-    lexer::Operator,
     typeast::{FnType, PrimType, TypeDef},
 };
 

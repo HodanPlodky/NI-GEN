@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use frontend::{
-    ast::{Expr, FnDef, Program, Statement, StatementType, TopLevel},
+    ast::{Expr, ExprType, FnDef, Program, Statement, StatementType, TopLevel, Val},
     typeast::{PrimType, TypeDef},
 };
 
 use crate::{
-    inst::{RegType, Register, Terminator, TerminatorReg},
+    inst::{ImmC, ImmI, RegType, Register, Terminator, TerminatorReg, RegReg},
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
 };
 
@@ -63,8 +63,16 @@ impl IrCompiler {
                 TopLevel::Structure(_) => todo!(),
             }
         }
+        self.ir_builder.add(I::Ret(Terminator), RegType::Void);
         let builder = std::mem::take(&mut self.ir_builder);
         Ok(builder.create())
+    }
+
+    fn compile_val(&mut self, val: &Val, f_b: &mut FunctionBuilder) -> Result<Register, IrCompErr> {
+        match val {
+            Val::Integer(num) => Ok(f_b.add(I::Ldi(ImmI(*num)), RegType::Int)),
+            Val::Char(c) => Ok(f_b.add(I::Ldc(ImmC(*c)), RegType::Char)),
+        }
     }
 
     fn compile_expr(
@@ -72,7 +80,47 @@ impl IrCompiler {
         expr: &Expr,
         f_b: &mut FunctionBuilder,
     ) -> Result<Register, IrCompErr> {
-        todo!()
+        match &expr.value {
+            ExprType::BinOp(op, l, r) => {
+                let l_reg = self.compile_expr(l, f_b)?;
+                let r_reg = self.compile_expr(r, f_b)?;
+                let rr = RegReg(l_reg, r_reg);
+                match op {
+                    frontend::ast::Operator::Add => Ok(f_b.add(I::Add(rr), expr.get_type().into())),
+                    frontend::ast::Operator::Sub => Ok(f_b.add(I::Sub(rr), expr.get_type().into())),
+                    frontend::ast::Operator::Mul => Ok(f_b.add(I::Mul(rr), expr.get_type().into())),
+                    frontend::ast::Operator::Div => Ok(f_b.add(I::Div(rr), expr.get_type().into())),
+                    frontend::ast::Operator::Mod => Ok(f_b.add(I::Mod(rr), expr.get_type().into())),
+                    frontend::ast::Operator::Inc => todo!(),
+                    frontend::ast::Operator::Dec => todo!(),
+                    frontend::ast::Operator::Lt => todo!(),
+                    frontend::ast::Operator::Le => todo!(),
+                    frontend::ast::Operator::Gt => todo!(),
+                    frontend::ast::Operator::Ge => todo!(),
+                    frontend::ast::Operator::Eql => todo!(),
+                    frontend::ast::Operator::Neq => todo!(),
+                    frontend::ast::Operator::Assign => todo!(),
+                    frontend::ast::Operator::BitOr => todo!(),
+                    frontend::ast::Operator::Or => todo!(),
+                    frontend::ast::Operator::BitAnd => todo!(),
+                    frontend::ast::Operator::And => todo!(),
+                    frontend::ast::Operator::Not => todo!(),
+                    frontend::ast::Operator::BitNot => todo!(),
+                    frontend::ast::Operator::ShiftLeft => todo!(),
+                    frontend::ast::Operator::ShiftRight => todo!(),
+                }
+            },
+            ExprType::UnaryPreOp(_, _) => todo!(),
+            ExprType::UnaryPostOp(_, _) => todo!(),
+            ExprType::Value(v) => self.compile_val(v, f_b),
+            ExprType::Ident(_) => todo!(),
+            ExprType::Call(_, _) => todo!(),
+            ExprType::Index(_, _) => todo!(),
+            ExprType::Deref(_) => todo!(),
+            ExprType::Address(_) => todo!(),
+            ExprType::Cast(_, _) => todo!(),
+            ExprType::FieldAccess(_, _) => todo!(),
+        }
     }
 
     fn compile_stmt(
@@ -113,6 +161,9 @@ impl IrCompiler {
             );
 
             self.compile_stmt(body, &mut fn_b)?;
+            if !fn_b.terminated() {
+                fn_b.add(I::Ret(Terminator), RegType::Void);
+            }
             self.ir_builder.add_fn(fn_b.create(&func.header.name))?;
         }
         Ok(())

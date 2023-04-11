@@ -109,7 +109,7 @@ impl BasicBlock {
 
     pub fn terminated(&self) -> bool {
         if self.is_empty() {
-            true
+            false
         } else {
             self.last().unwrap().data.terminator()
         }

@@ -146,6 +146,10 @@ impl FunctionBuilder {
         self.act_bb = bi;
     }
 
+    pub fn terminated(&self) -> bool {
+        self.blocks[self.act_bb].terminated()
+    }
+
     pub fn create(self, name: &str) -> Function {
         Function {
             name: name.to_string(),
