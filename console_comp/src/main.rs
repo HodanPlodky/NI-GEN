@@ -13,7 +13,9 @@ fn main() {
     let content: String = fs::read_to_string(path.clone()).unwrap();
 
     let prog = parse(content, path).unwrap();
-    let ir_prog = ir_compile(prog);
+    let ir_prog = ir_compile(prog).unwrap();
+    println!("{:?}", ir_prog);
+    println!("{}", ir_prog);
     let res = run(ir_prog).unwrap();
     println!("{}", res);
 }

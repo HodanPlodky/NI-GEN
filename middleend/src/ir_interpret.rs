@@ -377,7 +377,7 @@ mod tests {
         let reg = fn_b.add(I::Ldi(ImmI(5)), RegType::Int);
         fn_b.add(I::Print(Reg(reg)), RegType::Void);
         fn_b.add(I::Ret(Terminator), RegType::Void);
-        builder.add_fn("main", fn_b.create()).unwrap();
+        builder.add_fn(fn_b.create("main")).unwrap();
 
         let mut inter = Interpret::new(builder.create(), 1024);
         inter.run().unwrap();

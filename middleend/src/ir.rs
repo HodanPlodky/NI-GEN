@@ -7,6 +7,7 @@ use crate::inst::{BBIndex, BasicBlock, InstUUID, Instruction, InstructionType, R
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Function {
+    pub name: String,
     pub arg_count: u64,
     pub ret_type: RegType,
     pub blocks: Vec<BasicBlock>,
@@ -81,11 +82,11 @@ impl IrBuilder {
         (true, 0, self.global.len())
     }
 
-    pub fn add_fn(&mut self, name: &str, func: Function) -> Result<(), IrBuilderError> {
-        if self.prog.funcs.contains_key(&name.to_string()) {
+    pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {
+        if self.prog.funcs.contains_key(&func.name.to_string()) {
             return Err(IrBuilderError::FuncRedef);
         }
-        self.prog.funcs.insert(name.to_string(), func);
+        self.prog.funcs.insert(func.name.to_string(), func);
         Ok(())
     }
 
@@ -145,8 +146,9 @@ impl FunctionBuilder {
         self.act_bb = bi;
     }
 
-    pub fn create(self) -> Function {
+    pub fn create(self, name: &str) -> Function {
         Function {
+            name: name.to_string(),
             arg_count: self.arg_count,
             ret_type: self.ret_type,
             blocks: self.blocks,
@@ -171,6 +173,6 @@ mod tests {
         fn_b.set_bb(bi);
         fn_b.add(I::Print(Reg(reg)), RegType::Void);
         fn_b.add(I::Ret(Terminator), RegType::Void);
-        builder.add_fn("main", fn_b.create()).unwrap();
+        builder.add_fn(fn_b.create("main")).unwrap();
     }
 }
