@@ -50,8 +50,6 @@ impl Default for IrProgram {
 #[derive(Debug)]
 pub struct IrBuilder {
     global: BasicBlock,
-    act_bb: BBIndex,
-    act_fn: Option<String>,
     prog: IrProgram,
 }
 
@@ -59,8 +57,6 @@ impl Default for IrBuilder {
     fn default() -> Self {
         Self {
             global: BasicBlock::default(),
-            act_bb: 0,
-            act_fn: None,
             prog: IrProgram::default(),
         }
     }

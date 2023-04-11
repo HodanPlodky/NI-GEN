@@ -19,11 +19,12 @@ pub enum InterpretError {
     DoubleWrite(Register),
     InvalidOp(Instruction),
     NoMain,
+    WrongMainReturn,
     BasicBlockConti,
     Unknown,
 }
 
-pub fn run(program: IrProgram) -> Result<(), InterpretError> {
+pub fn run(program: IrProgram) -> Result<i64, InterpretError> {
     let mut inter = Interpret::new(program, 1024);
     inter.run()
 }
@@ -172,7 +173,7 @@ impl Interpret {
         Err(InterpretError::NonExistingRead(reg))
     }
 
-    fn run(&mut self) -> Result<(), InterpretError> {
+    fn run(&mut self) -> Result<i64, InterpretError> {
         let glob_block = self.program.glob.clone();
         self.run_basicblock(&glob_block)?;
         let main = match self.program.funcs.get(&"main".to_string()) {
@@ -181,7 +182,11 @@ impl Interpret {
         }?;
         self.locals.push(HashMap::new());
         self.run_func(main.clone())?;
-        Ok(())
+        match self.rev_val {
+            Some(Value::Signed(val)) => Ok(val),
+            None => Ok(0),
+            _ => Err(InterpretError::WrongMainReturn),
+        }
     }
 
     fn run_func(&mut self, func: Function) -> Result<Option<Value>, InterpretError> {
