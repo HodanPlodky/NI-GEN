@@ -91,7 +91,7 @@ impl Display for Function {
         )?;
         for i in 0..self.blocks.len() {
             writeln!(f, "BB{}:", i)?;
-            writeln!(f, "\t{}", self.blocks[i])?;
+            write!(f, "{}", self.blocks[i])?;
         }
         write!(f, "}}")
     }

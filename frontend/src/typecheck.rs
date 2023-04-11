@@ -461,6 +461,10 @@ impl TypecheckAst<Statement> for Statement {
                     self.set_type(TypeDef::Void);
                     Ok(TypeDef::Void)
                 }
+                (None, Some(TypeDef::Void)) => {
+                    self.set_type(TypeDef::Void);
+                    Ok(TypeDef::Void)
+                }
                 (None, Some(_)) => Err(TypeError::ExpectingRet.into()),
                 (Some(_), None) => Err(TypeError::UnexpectedRet.into()),
                 (Some(res), Some(exp)) => {
@@ -829,6 +833,7 @@ mod tests {
 
     #[test]
     fn return_test_typedef() {
+        type_ok("void main() { return; }");
         type_ok("int main(int a) { return a; }");
         type_err("int main(int a) { if (a) {return a;}  }");
         type_ok("int main(int a) { if (a) {return a;} return 1;}");

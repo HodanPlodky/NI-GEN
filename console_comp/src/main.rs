@@ -14,7 +14,6 @@ fn main() {
 
     let prog = parse(content, path).unwrap();
     let ir_prog = ir_compile(prog).unwrap();
-    println!("{:?}", ir_prog);
     println!("{}", ir_prog);
     let res = run(ir_prog).unwrap();
     println!("{}", res);
