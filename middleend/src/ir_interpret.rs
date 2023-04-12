@@ -354,6 +354,7 @@ impl Interpret {
                     let val = self.get(reg)?;
                     print!("{}", val);
                 }
+                InstructionType::Phi(_) => todo!(),
             }
         }
         Ok(next)

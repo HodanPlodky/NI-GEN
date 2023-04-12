@@ -56,6 +56,7 @@ impl Display for InstructionType {
             InstructionType::Jmp(_) => todo!(),
             InstructionType::Branch(_) => todo!(),
             InstructionType::Print(_) => todo!(),
+            InstructionType::Phi(_) => todo!(),
         }
     }
 }

@@ -51,6 +51,9 @@ pub enum InstructionType {
 
     // instrisic
     Print(Reg),
+
+    // phi node
+    Phi(RegRegs),
 }
 
 impl InstructionType {
