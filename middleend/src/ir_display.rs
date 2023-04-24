@@ -26,9 +26,9 @@ impl Display for InstructionType {
         match self {
             InstructionType::Ldi(ImmI(n)) => write!(f, "ldi {}", n),
             InstructionType::Ldc(_) => todo!(),
-            InstructionType::Ld(_) => todo!(),
-            InstructionType::St(_) => todo!(),
-            InstructionType::Alloca(_) => todo!(),
+            InstructionType::Ld(Reg(reg)) => write!(f, "ld [{}]", reg_view(*reg)), 
+            InstructionType::St(RegReg(addr, val)) => write!(f, "store [{}] {}", reg_view(*addr), reg_view(*val)),
+            InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n), 
             InstructionType::Allocg(_) => todo!(),
             InstructionType::Cpy(_) => todo!(),
             InstructionType::Gep(_) => todo!(),

@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
 use frontend::{
-    ast::{Expr, ExprType, FnDef, Program, Statement, StatementType, TopLevel, Val},
+    ast::{
+        Expr, ExprType, FnDef, Operator, Program, Statement, StatementType, TopLevel, Val, VarDecl,
+    },
     typeast::{PrimType, TypeDef},
 };
 
 use crate::{
-    inst::{ImmC, ImmI, RegType, Register, Terminator, TerminatorReg, RegReg},
+    inst::{ImmC, ImmI, RegReg, RegType, Register, Terminator, TerminatorReg, Reg},
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
 };
 
@@ -15,12 +17,13 @@ pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
     compiler.compile(program)
 }
 
-// name to addr
-type Env = HashMap<String, u64>;
+// name to register with address
+type Env = HashMap<String, Register>;
 
 #[derive(Debug)]
 pub enum IrCompErr {
     Builder(IrBuilderError),
+    NonExistingVar(String),
     Unknown,
 }
 
@@ -86,34 +89,37 @@ impl IrCompiler {
                 let r_reg = self.compile_expr(r, f_b)?;
                 let rr = RegReg(l_reg, r_reg);
                 match op {
-                    frontend::ast::Operator::Add => Ok(f_b.add(I::Add(rr), expr.get_type().into())),
-                    frontend::ast::Operator::Sub => Ok(f_b.add(I::Sub(rr), expr.get_type().into())),
-                    frontend::ast::Operator::Mul => Ok(f_b.add(I::Mul(rr), expr.get_type().into())),
-                    frontend::ast::Operator::Div => Ok(f_b.add(I::Div(rr), expr.get_type().into())),
-                    frontend::ast::Operator::Mod => Ok(f_b.add(I::Mod(rr), expr.get_type().into())),
-                    frontend::ast::Operator::Inc => todo!(),
-                    frontend::ast::Operator::Dec => todo!(),
-                    frontend::ast::Operator::Lt => todo!(),
-                    frontend::ast::Operator::Le => todo!(),
-                    frontend::ast::Operator::Gt => todo!(),
-                    frontend::ast::Operator::Ge => todo!(),
-                    frontend::ast::Operator::Eql => todo!(),
-                    frontend::ast::Operator::Neq => todo!(),
-                    frontend::ast::Operator::Assign => todo!(),
-                    frontend::ast::Operator::BitOr => todo!(),
-                    frontend::ast::Operator::Or => todo!(),
-                    frontend::ast::Operator::BitAnd => todo!(),
-                    frontend::ast::Operator::And => todo!(),
-                    frontend::ast::Operator::Not => todo!(),
-                    frontend::ast::Operator::BitNot => todo!(),
-                    frontend::ast::Operator::ShiftLeft => todo!(),
-                    frontend::ast::Operator::ShiftRight => todo!(),
+                    Operator::Add => Ok(f_b.add(I::Add(rr), expr.get_type().into())),
+                    Operator::Sub => Ok(f_b.add(I::Sub(rr), expr.get_type().into())),
+                    Operator::Mul => Ok(f_b.add(I::Mul(rr), expr.get_type().into())),
+                    Operator::Div => Ok(f_b.add(I::Div(rr), expr.get_type().into())),
+                    Operator::Mod => Ok(f_b.add(I::Mod(rr), expr.get_type().into())),
+                    Operator::Inc => todo!(),
+                    Operator::Dec => todo!(),
+                    Operator::Lt => todo!(),
+                    Operator::Le => todo!(),
+                    Operator::Gt => todo!(),
+                    Operator::Ge => todo!(),
+                    Operator::Eql => todo!(),
+                    Operator::Neq => todo!(),
+                    Operator::Assign => todo!(),
+                    Operator::BitOr => todo!(),
+                    Operator::Or => todo!(),
+                    Operator::BitAnd => todo!(),
+                    Operator::And => todo!(),
+                    Operator::Not => todo!(),
+                    Operator::BitNot => todo!(),
+                    Operator::ShiftLeft => todo!(),
+                    Operator::ShiftRight => todo!(),
                 }
-            },
+            }
             ExprType::UnaryPreOp(_, _) => todo!(),
             ExprType::UnaryPostOp(_, _) => todo!(),
             ExprType::Value(v) => self.compile_val(v, f_b),
-            ExprType::Ident(_) => todo!(),
+            ExprType::Ident(name) => {
+                let reg = self.get_addreg(name.clone())?;
+                Ok(f_b.add(I::Ld(Reg(reg)), expr.get_type().into()))
+            },
             ExprType::Call(_, _) => todo!(),
             ExprType::Index(_, _) => todo!(),
             ExprType::Deref(_) => todo!(),
@@ -123,6 +129,45 @@ impl IrCompiler {
         }
     }
 
+    fn get_addreg(&mut self, name : String) -> Result<Register, IrCompErr> {
+        for i in (0..self.env.len()).rev() {
+            if let Some(reg) = self.env[i].get(&name) {
+                return Ok(*reg);
+            }
+        }
+        Err(IrCompErr::NonExistingVar(name))
+    }
+
+    fn compile_assign(&mut self, name : String, expr : &Expr, f_b: &mut FunctionBuilder) -> Result<(), IrCompErr> {
+        let reg_store = self.get_addreg(name)?;
+        let reg_val = self.compile_expr(expr, f_b)?;
+        f_b.add(I::St(RegReg(reg_store, reg_val)), RegType::Void);
+        Ok(())
+    }
+
+    fn compile_vardecl(
+        &mut self,
+        decl: &VarDecl,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<(), IrCompErr> {
+        let size = match decl.value.var_type {
+            TypeDef::Void => unreachable!(),
+            TypeDef::PrimType(PrimType::Int) => 4,
+            TypeDef::PrimType(PrimType::Char) => 1,
+            TypeDef::PointerType(_) => todo!(),
+            TypeDef::Function(_) => todo!(),
+            TypeDef::Alias(_) => todo!(),
+            TypeDef::Struct(_) => todo!(),
+            TypeDef::Array(_) => todo!(),
+        };
+        let reg = f_b.add(I::Alloca(ImmI(size)), RegType::Int);
+        self.env.last_mut().unwrap().insert(decl.name.clone(), reg);
+        if let Some(init_val) = &decl.value.init_val {
+            self.compile_assign(decl.name.clone(), init_val, f_b)?;
+        }
+        Ok(())
+    }
+
     fn compile_stmt(
         &mut self,
         stmt: &Statement,
@@ -130,7 +175,7 @@ impl IrCompiler {
     ) -> Result<(), IrCompErr> {
         match &stmt.value {
             StatementType::Expr(_) => todo!(),
-            StatementType::VarDecl(_) => todo!(),
+            StatementType::VarDecl(decl) => self.compile_vardecl(decl, f_b)?,
             StatementType::Block(stmts) => {
                 for s in stmts {
                     self.compile_stmt(s, f_b)?;

@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    lexer::{Loc,},
+    lexer::Loc,
     typeast::TypeDef,
 };
 
