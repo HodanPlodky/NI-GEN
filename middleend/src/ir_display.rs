@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    inst::{BasicBlock, Instruction, InstructionType, RegType, Register, ImmI, Reg, TerminatorReg, RegReg},
+    inst::{BasicBlock, Instruction, InstructionType, RegType, Register, ImmI, Reg, TerminatorReg, RegReg, ImmC},
     ir::{Function, IrProgram},
 };
 
@@ -25,7 +25,7 @@ impl Display for InstructionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InstructionType::Ldi(ImmI(n)) => write!(f, "ldi {}", n),
-            InstructionType::Ldc(_) => todo!(),
+            InstructionType::Ldc(ImmC(n)) => write!(f, "ldc {}", n),
             InstructionType::Ld(Reg(reg)) => write!(f, "ld [{}]", reg_view(*reg)), 
             InstructionType::St(RegReg(addr, val)) => write!(f, "store [{}] {}", reg_view(*addr), reg_view(*val)),
             InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n), 

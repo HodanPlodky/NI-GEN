@@ -8,7 +8,7 @@ use frontend::{
 };
 
 use crate::{
-    inst::{ImmC, ImmI, RegReg, RegType, Register, Terminator, TerminatorReg, Reg},
+    inst::{ImmC, ImmI, Reg, RegReg, RegType, Register, Terminator, TerminatorReg},
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
 };
 
@@ -119,7 +119,7 @@ impl IrCompiler {
             ExprType::Ident(name) => {
                 let reg = self.get_addreg(name.clone())?;
                 Ok(f_b.add(I::Ld(Reg(reg)), expr.get_type().into()))
-            },
+            }
             ExprType::Call(_, _) => todo!(),
             ExprType::Index(_, _) => todo!(),
             ExprType::Deref(_) => todo!(),
@@ -129,7 +129,7 @@ impl IrCompiler {
         }
     }
 
-    fn get_addreg(&mut self, name : String) -> Result<Register, IrCompErr> {
+    fn get_addreg(&mut self, name: String) -> Result<Register, IrCompErr> {
         for i in (0..self.env.len()).rev() {
             if let Some(reg) = self.env[i].get(&name) {
                 return Ok(*reg);
@@ -138,7 +138,12 @@ impl IrCompiler {
         Err(IrCompErr::NonExistingVar(name))
     }
 
-    fn compile_assign(&mut self, name : String, expr : &Expr, f_b: &mut FunctionBuilder) -> Result<(), IrCompErr> {
+    fn compile_named_assign(
+        &mut self,
+        name: String,
+        expr: &Expr,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<(), IrCompErr> {
         let reg_store = self.get_addreg(name)?;
         let reg_val = self.compile_expr(expr, f_b)?;
         f_b.add(I::St(RegReg(reg_store, reg_val)), RegType::Void);
@@ -163,7 +168,7 @@ impl IrCompiler {
         let reg = f_b.add(I::Alloca(ImmI(size)), RegType::Int);
         self.env.last_mut().unwrap().insert(decl.name.clone(), reg);
         if let Some(init_val) = &decl.value.init_val {
-            self.compile_assign(decl.name.clone(), init_val, f_b)?;
+            self.compile_named_assign(decl.name.clone(), init_val, f_b)?;
         }
         Ok(())
     }
