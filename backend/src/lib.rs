@@ -1,14 +1,23 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+use middleend::ir::IrProgram;
+
+type Data = Vec<u8>;
+
+type Register = usize;
+
+struct AsmInstruction {
+    Ldi(Register, i32),
+    Addi(Register, Register, i32),
+
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+type AsmBasicBlock = Vec<AsmInstruction>;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub struct AsmProgram {
+    data : Vec<(String, Data)>,
+    text : Vec<AsmBasicBlock>
+}
+
+pub fn asm_compile(ir_program : IrProgram) -> AsmProgram {
+    let x = Data::new();
+    todo!()
 }

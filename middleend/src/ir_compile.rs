@@ -94,8 +94,6 @@ impl IrCompiler {
                     Operator::Mul => Ok(f_b.add(I::Mul(rr), expr.get_type().into())),
                     Operator::Div => Ok(f_b.add(I::Div(rr), expr.get_type().into())),
                     Operator::Mod => Ok(f_b.add(I::Mod(rr), expr.get_type().into())),
-                    Operator::Inc => todo!(),
-                    Operator::Dec => todo!(),
                     Operator::Lt => todo!(),
                     Operator::Le => todo!(),
                     Operator::Gt => todo!(),
@@ -111,6 +109,7 @@ impl IrCompiler {
                     Operator::BitNot => todo!(),
                     Operator::ShiftLeft => todo!(),
                     Operator::ShiftRight => todo!(),
+                    _ => unreachable!(),
                 }
             }
             ExprType::UnaryPreOp(_, _) => todo!(),
@@ -159,7 +158,7 @@ impl IrCompiler {
             TypeDef::Void => unreachable!(),
             TypeDef::PrimType(PrimType::Int) => 4,
             TypeDef::PrimType(PrimType::Char) => 1,
-            TypeDef::PointerType(_) => todo!(),
+            TypeDef::PointerType(_) => 8,
             TypeDef::Function(_) => todo!(),
             TypeDef::Alias(_) => todo!(),
             TypeDef::Struct(_) => todo!(),
