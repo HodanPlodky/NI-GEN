@@ -122,7 +122,12 @@ impl IrCompiler {
             ExprType::Call(_, _) => todo!(),
             ExprType::Index(_, _) => todo!(),
             ExprType::Deref(_) => todo!(),
-            ExprType::Address(_) => todo!(),
+            ExprType::Address(e) => {
+                match &e.value {
+                    ExprType::Ident(name) => self.get_addreg(name.clone()),
+                    _ => todo!()
+                }
+            },
             ExprType::Cast(_, _) => todo!(),
             ExprType::FieldAccess(_, _) => todo!(),
         }
@@ -144,6 +149,22 @@ impl IrCompiler {
         f_b: &mut FunctionBuilder,
     ) -> Result<(), IrCompErr> {
         let reg_store = self.get_addreg(name)?;
+        let reg_val = self.compile_expr(expr, f_b)?;
+        f_b.add(I::St(RegReg(reg_store, reg_val)), RegType::Void);
+        Ok(())
+    }
+
+    fn compile_assign(
+        &mut self,
+        store: &Expr,
+        expr: &Expr,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<(), IrCompErr> {
+        let reg_store = match &store.value {
+            ExprType::Ident(name) => self.get_addreg(name.clone()),
+            ExprType::Deref(e) => self.compile_expr(e, f_b),
+            _ => todo!(),
+        }?;
         let reg_val = self.compile_expr(expr, f_b)?;
         f_b.add(I::St(RegReg(reg_store, reg_val)), RegType::Void);
         Ok(())
@@ -178,7 +199,10 @@ impl IrCompiler {
         f_b: &mut FunctionBuilder,
     ) -> Result<(), IrCompErr> {
         match &stmt.value {
-            StatementType::Expr(_) => todo!(),
+            StatementType::Expr(e) => match &e.value {
+                ExprType::BinOp(Operator::Assign, l, r) => self.compile_assign(l, r, f_b)?,
+                _ => todo!(),
+            },
             StatementType::VarDecl(decl) => self.compile_vardecl(decl, f_b)?,
             StatementType::Block(stmts) => {
                 for s in stmts {

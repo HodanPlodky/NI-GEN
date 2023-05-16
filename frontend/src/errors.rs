@@ -42,6 +42,7 @@ pub enum TypeError {
     TypeIsNotSized,
     NonStructType,
     MissingField(String),
+    DontHaveAddr(Expr),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

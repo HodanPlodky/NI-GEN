@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        Expr, ExprType, FnDecl, FnDef, Program, Statement, StatementType, StructDef, StructDefType,
-        TopLevel, Val, VarDecl, Operator,
+        Expr, ExprType, FnDecl, FnDef, Operator, Program, Statement, StatementType, StructDef,
+        StructDefType, TopLevel, Val, VarDecl,
     },
     errors::{FrontendError, TypeError},
     typeast::{FnType, PrimType, TypeDef},
@@ -316,6 +316,9 @@ impl TypecheckAst<Expr> for Expr {
             }
             ExprType::Address(e) => {
                 e.typecheck(data)?;
+                if !e.assignable() {
+                    return Err(TypeError::DontHaveAddr(*e.clone()).into());
+                }
                 let t = e.get_type();
                 self.set_type(TypeDef::PointerType(Box::new(t)));
                 Ok(TypeDef::Void)
