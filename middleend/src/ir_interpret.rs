@@ -60,15 +60,21 @@ type Env = HashMap<Register, Value>;
 struct Memory {
     stack_size: usize,
     stack: Vec<u8>,
+    sp: usize,
     heap: Vec<u8>,
 }
 
 impl Memory {
     fn new(stack_size: usize) -> Self {
+        let mut stack = vec![];
+        let mut heap = vec![];
+        stack.resize(stack_size, 0);
+        heap.resize(stack_size * 2, 0);
         Self {
             stack_size,
-            stack: vec![],
-            heap: vec![],
+            sp: 0,
+            stack,
+            heap,
         }
     }
 
@@ -112,11 +118,47 @@ impl Memory {
     }
 
     fn write(&mut self, addr: Value, value: Value) -> Result<(), InterpretError> {
-        todo!()
+        let addr: usize = addr.into();
+
+        match value {
+            Value::Signed(v) => self.write_int(addr, v),
+            Value::Char(c) => self.write_char(addr, c),
+        }
+    }
+
+    fn write_int(&mut self, addr: usize, value: i64) -> Result<(), InterpretError> {
+        let mut addr = addr;
+        let vec = if addr < self.stack_size {
+            &mut self.stack
+        } else {
+            addr -= self.stack_size;
+            &mut self.heap
+        };
+
+        let mut value: u64 = value as u64;
+
+        for i in 0..8 {
+            vec[addr + i] = (0xff & value) as u8;
+            value >>= 8;
+        }
+        Ok(())
+    }
+
+    fn write_char(&mut self, addr: usize, value: u8) -> Result<(), InterpretError> {
+        let mut addr = addr;
+        let vec = if addr < self.stack_size {
+            &mut self.stack
+        } else {
+            addr -= self.stack_size;
+            &mut self.heap
+        };
+
+        vec[addr] = value;
+        Ok(())
     }
 
     fn alloca(&mut self, amount: i64) -> Result<Value, InterpretError> {
-        if self.stack.len() + amount as usize > self.stack_size {
+        if self.sp + amount as usize > self.stack_size {
             return Err(InterpretError::OutOfBoundWrite);
         }
         let res = self.stack.len();

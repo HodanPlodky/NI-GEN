@@ -112,6 +112,7 @@ impl IrCompiler {
                     _ => unreachable!(),
                 }
             }
+
             ExprType::UnaryPreOp(_, _) => todo!(),
             ExprType::UnaryPostOp(_, _) => todo!(),
             ExprType::Value(v) => self.compile_val(v, f_b),
@@ -122,11 +123,9 @@ impl IrCompiler {
             ExprType::Call(_, _) => todo!(),
             ExprType::Index(_, _) => todo!(),
             ExprType::Deref(_) => todo!(),
-            ExprType::Address(e) => {
-                match &e.value {
-                    ExprType::Ident(name) => self.get_addreg(name.clone()),
-                    _ => todo!()
-                }
+            ExprType::Address(e) => match &e.value {
+                ExprType::Ident(name) => self.get_addreg(name.clone()),
+                _ => todo!(),
             },
             ExprType::Cast(_, _) => todo!(),
             ExprType::FieldAccess(_, _) => todo!(),
