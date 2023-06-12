@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use middleend::ir::IrProgram;
 
 type Data = Vec<u8>;
@@ -50,18 +52,51 @@ enum AsmInstruction {
     Or(Rd, Rd, Rd),
     And(Rd, Rd, Rd),
     Sra(Rd, Rd, Rd),
-
-    
 }
 
-type AsmBasicBlock = Vec<AsmInstruction>;
+impl Display for AsmInstruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+type AsmBasicBlock = (String, Vec<AsmInstruction>);
 
 pub struct AsmProgram {
     data: Vec<(String, Data)>,
     text: Vec<AsmBasicBlock>,
 }
 
+impl Default for AsmProgram {
+    fn default() -> Self {
+        Self {
+            data: vec![],
+            text: vec![],
+        }
+    }
+}
+
 pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
-    let x = Data::new();
-    todo!()
+    let program = AsmProgram::default();
+
+    program
+}
+
+pub fn emit_assembly(program: AsmProgram) -> String {
+    let mut lines = vec![
+        ".global _start".to_string(),
+        "_start:".to_string(),
+        "j main".to_string(),
+    ];
+
+    lines.append(&mut program.text.iter().flat_map(emit_basicblock).collect());
+
+    lines.join("\n")
+}
+
+fn emit_basicblock(block: &AsmBasicBlock) -> Vec<String> {
+    let (name, code) = block;
+    let mut result = vec![name.clone() + ":"];
+    result.append(&mut code.iter().map(|x| x.to_string()).collect());
+    result
 }
