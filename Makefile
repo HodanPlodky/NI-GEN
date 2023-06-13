@@ -7,6 +7,10 @@ run: compile
 
 compile:
 	rm -rf example
-	$(AS) example.s -o example.o
-	$(CC) -o example example.o -nostdlib -static
+	$(CC) $(CFLAGS) -c example.s -o example.o
+	$(CC) $(CFLAGS) -o example example.o -nostdlib -static
+
+gdb: compile
+	qemu-riscv64 -L /usr/riscv64-linux-gnu/ -g 1234 example &
+	riscv64-linux-gnu-gdb -ex 'target remote localhost:1234'
 

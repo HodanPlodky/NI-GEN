@@ -57,6 +57,7 @@ impl Display for InstructionType {
             InstructionType::Branch(_) => todo!(),
             InstructionType::Print(_) => todo!(),
             InstructionType::Phi(_) => todo!(),
+            InstructionType::Exit(_) =>  write!(f, "exit"),
         }
     }
 }

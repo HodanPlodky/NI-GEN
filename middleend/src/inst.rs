@@ -45,6 +45,7 @@ pub enum InstructionType {
 
     // Terminators
     Ret(Terminator),
+    Exit(Terminator),
     Retr(TerminatorReg),
     Jmp(TerminatorJump),
     Branch(TerminatorBranch),

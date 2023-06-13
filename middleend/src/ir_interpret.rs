@@ -370,7 +370,7 @@ impl Interpret {
                 InstructionType::Fun(_) => todo!(),
                 InstructionType::Call(_) => todo!(),
                 InstructionType::Arg(_) => todo!(),
-                InstructionType::Ret(_) => {
+                InstructionType::Ret(_) | InstructionType::Exit(_) => {
                     terminated = true;
                     next = None;
                     self.rev_val = None;
