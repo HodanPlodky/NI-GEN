@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Display};
 
-use middleend::{inst::Instruction, ir::IrProgram};
+use middleend::{
+    inst::Instruction,
+    ir::{Function, IrProgram},
+};
 
 type Data = Vec<u8>;
 
@@ -123,9 +126,17 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
         .flat_map(instruction_selection)
         .collect();
 
-    //let text : Vec<(String, AsmBasicBlock)> = ir_program.funcs.into_iter().flat_map()
+    let text: Vec<(String, AsmBasicBlock)> = ir_program
+        .funcs
+        .into_iter()
+        .flat_map(|x| asm_func(x.0, x.1))
+        .collect();
 
     program
+}
+
+fn asm_func(name: String, function: Function) -> Vec<(String, AsmBasicBlock)> {
+    todo!() 
 }
 
 fn instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
