@@ -1,3 +1,7 @@
+int f() {
+    return 1 + 3;
+}
+
 int main() {
-    return 1 + 2;
+    return 11 + 2;
 }

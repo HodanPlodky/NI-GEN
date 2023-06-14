@@ -1,14 +1,16 @@
 pub mod emit;
 
+use std::collections::HashMap;
+
 use middleend::{
-    inst::{BasicBlock, Instruction},
+    inst::{BasicBlock, ImmI, Instruction, RegReg, TerminatorReg},
     ir::{Function, IrProgram},
 };
 
 type Data = Vec<u8>;
 
 type Rd = usize;
-type Imm = i32;
+type Imm = i64;
 type Offset = i32;
 
 enum AsmInstruction {
@@ -117,8 +119,13 @@ fn asm_basicblock(block: BasicBlock) -> AsmBasicBlock {
 }
 
 fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
+    let t: [usize; 7] = [5, 6, 7, 28, 29, 30, 31];
+    let a: [usize; 8] = [10, 11, 12, 13, 14, 15, 16, 17];
+    let reg = inst.id.2;
     match &inst.data {
-        middleend::inst::InstructionType::Ldi(imm) => todo!(),//vec![AsmInstruction::Addi()],
+        middleend::inst::InstructionType::Ldi(ImmI(imm)) => {
+            vec![AsmInstruction::Addi(t[reg], 0, *imm)]
+        }
         middleend::inst::InstructionType::Ldc(_) => todo!(),
         middleend::inst::InstructionType::Ld(_) => todo!(),
         middleend::inst::InstructionType::St(_) => todo!(),
@@ -126,7 +133,9 @@ fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
         middleend::inst::InstructionType::Allocg(_) => todo!(),
         middleend::inst::InstructionType::Cpy(_) => todo!(),
         middleend::inst::InstructionType::Gep(_) => todo!(),
-        middleend::inst::InstructionType::Add(_) => todo!(),
+        middleend::inst::InstructionType::Add(RegReg(r1, r2)) => {
+            vec![AsmInstruction::Add(t[reg], t[r1.2], t[r2.2])]
+        }
         middleend::inst::InstructionType::Sub(_) => todo!(),
         middleend::inst::InstructionType::Mul(_) => todo!(),
         middleend::inst::InstructionType::Div(_) => todo!(),
@@ -146,11 +155,48 @@ fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
         middleend::inst::InstructionType::Call(_) => todo!(),
         middleend::inst::InstructionType::Arg(_) => todo!(),
         middleend::inst::InstructionType::Ret(_) => todo!(),
-        middleend::inst::InstructionType::Exit(_) => todo!(),
-        middleend::inst::InstructionType::Retr(_) => todo!(),
+        middleend::inst::InstructionType::Exit(_) => vec![],
+        middleend::inst::InstructionType::Retr(TerminatorReg(reg)) => {
+            vec![AsmInstruction::Addi(a[0], t[reg.2], 0), AsmInstruction::Ret]
+        }
         middleend::inst::InstructionType::Jmp(_) => todo!(),
         middleend::inst::InstructionType::Branch(_) => todo!(),
         middleend::inst::InstructionType::Print(_) => todo!(),
         middleend::inst::InstructionType::Phi(_) => todo!(),
+    }
+}
+
+enum ValueCell {
+    Register(usize),
+    StackOffset(usize),
+}
+
+struct AsmFunctionBuilder {
+    stacksize: usize,
+    blocks: Vec<AsmBasicBlock>,
+
+    registers : HashMap<middleend::inst::Register, ValueCell>,
+}
+
+impl AsmFunctionBuilder {
+    fn new() -> Self {
+        Self {
+            stacksize: 0,
+            blocks: vec![],
+            
+            registers : HashMap::new(),
+        }
+    }
+
+    fn create_block(&mut self) {
+        self.blocks.push(AsmBasicBlock::new());
+    }
+
+    fn allocate_reg(&mut self) -> ValueCell {
+        todo!()
+    }
+
+    fn add_instruction(&mut self) {
+
     }
 }

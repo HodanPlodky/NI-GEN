@@ -67,6 +67,7 @@ impl IrCompiler {
             }
         }
         self.ir_builder.add(I::Exit(Terminator), RegType::Void);
+
         let builder = std::mem::take(&mut self.ir_builder);
         Ok(builder.create())
     }

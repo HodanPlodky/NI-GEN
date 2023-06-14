@@ -2,7 +2,7 @@
 
 _start:
     call main
-
+    nop
     addi a7, zero, 93
     ecall
 

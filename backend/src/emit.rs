@@ -26,16 +26,16 @@ impl Display for AsmInstruction {
             AsmInstruction::Sb(x, y, z) => write!(f, "sb {}, {}, {}", x, y, z),
             AsmInstruction::Sh(x, y, z) => write!(f, "sh {}, {}, {}", x, y, z),
             AsmInstruction::Sw(x, y, z) => write!(f, "sw {}, {}, {}", x, y, z),
-            AsmInstruction::Addi(x, y, z) => write!(f, "addi {}, {}, {}", x, y, z),
+            AsmInstruction::Addi(x, y, z) => write!(f, "addi x{}, x{}, {}", x, y, z),
             AsmInstruction::Slti(x, y, z) => write!(f, "slti {}, {}, {}", x, y, z),
             AsmInstruction::Sltiu(x, y, z) => write!(f, "sltiu {}, {}, {}", x, y, z),
             AsmInstruction::Xori(x, y, z) => write!(f, "xori {}, {}, {}", x, y, z),
             AsmInstruction::Ori(x, y, z) => write!(f, "ori {}, {}, {}", x, y, z),
-            AsmInstruction::Andi(x, y, z) => write!(f, "andi {}, {}, {}", x, y, z),
+            AsmInstruction::Andi(x, y, z) => write!(f, "andi x{}, x{}, {}", x, y, z),
             AsmInstruction::Slli(x, y, z) => write!(f, "slli {}, {}, {}", x, y, z),
             AsmInstruction::Srli(x, y, z) => write!(f, "srli {}, {}, {}", x, y, z),
             AsmInstruction::Srai(x, y, z) => write!(f, "srai {}, {}, {}", x, y, z),
-            AsmInstruction::Add(x, y, z) => write!(f, "add {}, {}, {}", x, y, z),
+            AsmInstruction::Add(x, y, z) => write!(f, "add x{}, x{}, x{}", x, y, z),
             AsmInstruction::Sub(x, y, z) => write!(f, "sub {}, {}, {}", x, y, z),
             AsmInstruction::Sll(x, y, z) => write!(f, "sll {}, {}, {}", x, y, z),
             AsmInstruction::Srl(x, y, z) => write!(f, "srl {}, {}, {}", x, y, z),
@@ -58,11 +58,11 @@ pub fn emit_assembly(program: AsmProgram) -> String {
     // appending any prologue
     lines.append(&mut emit_basicblock(program.start));
 
-    lines.push("call main".to_string());
+    lines.push("    call main".to_string());
 
     // epilogue
-    lines.push("addi a7, zero, 93".to_string());
-    lines.push("ecall".to_string());
+    lines.push("    addi a7, zero, 93".to_string());
+    lines.push("    ecall".to_string());
 
     // main logic
     lines.append(&mut program.text.into_iter().flat_map(emit_function).collect());
@@ -83,5 +83,5 @@ fn emit_function(function: AsmFunction) -> Vec<String> {
 }
 
 fn emit_basicblock(block: AsmBasicBlock) -> Vec<String> {
-    block.iter().map(|x| x.to_string()).collect()
+    block.iter().map(|x| "    ".to_string() + x.to_string().as_str()).collect()
 }
