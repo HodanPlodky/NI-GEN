@@ -88,7 +88,7 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
     let start: AsmBasicBlock = ir_program
         .glob
         .iter()
-        .flat_map(instruction_selection)
+        .flat_map(basic_instruction_selection)
         .collect();
 
     let text: Vec<AsmFunction> = ir_program
@@ -113,10 +113,44 @@ fn asm_func(function: Function) -> AsmFunction {
 }
 
 fn asm_basicblock(block: BasicBlock) -> AsmBasicBlock {
-    todo!()
+    block.iter().flat_map(basic_instruction_selection).collect()
 }
 
-fn instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
-    todo!()
+fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
+    match &inst.data {
+        middleend::inst::InstructionType::Ldi(imm) => todo!(),//vec![AsmInstruction::Addi()],
+        middleend::inst::InstructionType::Ldc(_) => todo!(),
+        middleend::inst::InstructionType::Ld(_) => todo!(),
+        middleend::inst::InstructionType::St(_) => todo!(),
+        middleend::inst::InstructionType::Alloca(_) => todo!(),
+        middleend::inst::InstructionType::Allocg(_) => todo!(),
+        middleend::inst::InstructionType::Cpy(_) => todo!(),
+        middleend::inst::InstructionType::Gep(_) => todo!(),
+        middleend::inst::InstructionType::Add(_) => todo!(),
+        middleend::inst::InstructionType::Sub(_) => todo!(),
+        middleend::inst::InstructionType::Mul(_) => todo!(),
+        middleend::inst::InstructionType::Div(_) => todo!(),
+        middleend::inst::InstructionType::Mod(_) => todo!(),
+        middleend::inst::InstructionType::Shr(_) => todo!(),
+        middleend::inst::InstructionType::Shl(_) => todo!(),
+        middleend::inst::InstructionType::And(_) => todo!(),
+        middleend::inst::InstructionType::Or(_) => todo!(),
+        middleend::inst::InstructionType::Xor(_) => todo!(),
+        middleend::inst::InstructionType::Neg(_) => todo!(),
+        middleend::inst::InstructionType::Lt(_) => todo!(),
+        middleend::inst::InstructionType::Le(_) => todo!(),
+        middleend::inst::InstructionType::Gt(_) => todo!(),
+        middleend::inst::InstructionType::Ge(_) => todo!(),
+        middleend::inst::InstructionType::Eql(_) => todo!(),
+        middleend::inst::InstructionType::Fun(_) => todo!(),
+        middleend::inst::InstructionType::Call(_) => todo!(),
+        middleend::inst::InstructionType::Arg(_) => todo!(),
+        middleend::inst::InstructionType::Ret(_) => todo!(),
+        middleend::inst::InstructionType::Exit(_) => todo!(),
+        middleend::inst::InstructionType::Retr(_) => todo!(),
+        middleend::inst::InstructionType::Jmp(_) => todo!(),
+        middleend::inst::InstructionType::Branch(_) => todo!(),
+        middleend::inst::InstructionType::Print(_) => todo!(),
+        middleend::inst::InstructionType::Phi(_) => todo!(),
+    }
 }
-

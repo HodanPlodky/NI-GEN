@@ -23,7 +23,7 @@ main:
 fib:
     addi sp, sp, -24
     addi t0, zero, 1
-    bge t0, a0, fib_base
+    bge t0, a0, fib+34
     
     # store return address and parameter
     sd ra, 16(sp)
@@ -43,7 +43,6 @@ fib:
 
     ld ra, 16(sp)
 
-fib_base:
     addi sp, sp, 24
     ret
 

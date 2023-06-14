@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{AsmInstruction, AsmProgram};
+use crate::{AsmInstruction, AsmProgram, AsmBasicBlock, AsmFunction};
 
 
 impl Display for AsmInstruction {

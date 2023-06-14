@@ -66,7 +66,7 @@ impl IrCompiler {
                 TopLevel::Structure(_) => todo!(),
             }
         }
-        self.ir_builder.add(I::Ret(Terminator), RegType::Void);
+        self.ir_builder.add(I::Exit(Terminator), RegType::Void);
         let builder = std::mem::take(&mut self.ir_builder);
         Ok(builder.create())
     }
