@@ -1,7 +1,3 @@
-int f() {
-    return 1 + 3;
-}
-
 int main() {
-    return 11 + 2;
+    return 1 + 2 + 3 + 4 + 5 + 6;
 }

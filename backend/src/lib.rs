@@ -11,7 +11,7 @@ type Data = Vec<u8>;
 
 type Rd = usize;
 type Imm = i64;
-type Offset = i32;
+type Offset = i64;
 
 enum AsmInstruction {
     Lui(Rd, Imm),
@@ -30,12 +30,14 @@ enum AsmInstruction {
     Lb(Rd, Rd, Offset),
     Lh(Rd, Rd, Offset),
     Lw(Rd, Rd, Offset),
+    Ld(Rd, Rd, Offset),
     Lbu(Rd, Rd, Offset),
     Lhu(Rd, Rd, Offset),
 
     Sb(Rd, Rd, Offset),
     Sh(Rd, Rd, Offset),
     Sw(Rd, Rd, Offset),
+    Sd(Rd, Rd, Offset),
 
     Addi(Rd, Rd, Imm),
     Slti(Rd, Rd, Imm),
@@ -87,10 +89,11 @@ impl Default for AsmProgram {
 }
 
 pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
+    let mut startbuilder = AsmFunctionBuilder::new();
     let start: AsmBasicBlock = ir_program
         .glob
         .iter()
-        .flat_map(basic_instruction_selection)
+        .flat_map(|x| basic_instruction_selection(x, &mut startbuilder))
         .collect();
 
     let text: Vec<AsmFunction> = ir_program
@@ -107,24 +110,39 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
 }
 
 fn asm_func(function: Function) -> AsmFunction {
-    let result = function.blocks.into_iter().map(asm_basicblock).collect();
+    let mut builder = AsmFunctionBuilder::new();
+    let result = function
+        .blocks
+        .into_iter()
+        .map(|x| asm_basicblock(x, &mut builder))
+        .collect();
     AsmFunction {
         name: function.name,
         blocks: result,
     }
 }
 
-fn asm_basicblock(block: BasicBlock) -> AsmBasicBlock {
-    block.iter().flat_map(basic_instruction_selection).collect()
+fn asm_basicblock(block: BasicBlock, builder: &mut AsmFunctionBuilder) -> AsmBasicBlock {
+    block
+        .iter()
+        .flat_map(|x| basic_instruction_selection(x, builder))
+        .collect()
 }
 
-fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
-    let t: [usize; 7] = [5, 6, 7, 28, 29, 30, 31];
+fn basic_instruction_selection(
+    inst: &Instruction,
+    builder: &mut AsmFunctionBuilder,
+) -> Vec<AsmInstruction> {
     let a: [usize; 8] = [10, 11, 12, 13, 14, 15, 16, 17];
-    let reg = inst.id.2;
+    let reg = inst.id;
     match &inst.data {
         middleend::inst::InstructionType::Ldi(ImmI(imm)) => {
-            vec![AsmInstruction::Addi(t[reg], 0, *imm)]
+            builder.allocate_reg(reg);
+            let (mut result, out) = builder.get_reg(reg);
+            result.push(AsmInstruction::Addi(out, 0, *imm));
+            result.append(&mut builder.store_reg(reg, out));
+            builder.release_temp();
+            result
         }
         middleend::inst::InstructionType::Ldc(_) => todo!(),
         middleend::inst::InstructionType::Ld(_) => todo!(),
@@ -134,7 +152,16 @@ fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
         middleend::inst::InstructionType::Cpy(_) => todo!(),
         middleend::inst::InstructionType::Gep(_) => todo!(),
         middleend::inst::InstructionType::Add(RegReg(r1, r2)) => {
-            vec![AsmInstruction::Add(t[reg], t[r1.2], t[r2.2])]
+            builder.allocate_reg(reg);
+            let (mut result, out) = builder.get_reg(reg);
+            let (mut instsr1, asm_r1) = builder.get_reg(*r1);
+            let (mut instsr2, asm_r2) = builder.get_reg(*r2);
+            result.append(&mut instsr1);
+            result.append(&mut instsr2);
+            result.push(AsmInstruction::Add(out, asm_r1, asm_r2));
+            result.append(&mut builder.store_reg(reg, out));
+            builder.release_temp();
+            result
         }
         middleend::inst::InstructionType::Sub(_) => todo!(),
         middleend::inst::InstructionType::Mul(_) => todo!(),
@@ -154,10 +181,15 @@ fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
         middleend::inst::InstructionType::Fun(_) => todo!(),
         middleend::inst::InstructionType::Call(_) => todo!(),
         middleend::inst::InstructionType::Arg(_) => todo!(),
-        middleend::inst::InstructionType::Ret(_) => todo!(),
+        middleend::inst::InstructionType::Ret(_) => vec![AsmInstruction::Ret],
         middleend::inst::InstructionType::Exit(_) => vec![],
         middleend::inst::InstructionType::Retr(TerminatorReg(reg)) => {
-            vec![AsmInstruction::Addi(a[0], t[reg.2], 0), AsmInstruction::Ret]
+            builder.get_reg(*reg);
+            let (mut result, out) = builder.get_reg(*reg);
+            result.push(AsmInstruction::Addi(a[0], out, 0));
+            result.push(AsmInstruction::Ret);
+            builder.release_temp();
+            result
         }
         middleend::inst::InstructionType::Jmp(_) => todo!(),
         middleend::inst::InstructionType::Branch(_) => todo!(),
@@ -166,16 +198,19 @@ fn basic_instruction_selection(inst: &Instruction) -> Vec<AsmInstruction> {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ValueCell {
     Register(usize),
-    StackOffset(usize),
+    StackOffset(i64),
 }
 
 struct AsmFunctionBuilder {
     stacksize: usize,
     blocks: Vec<AsmBasicBlock>,
 
-    registers : HashMap<middleend::inst::Register, ValueCell>,
+    registers: HashMap<middleend::inst::Register, ValueCell>,
+    freeowned: Vec<usize>,
+    freetemp: Vec<usize>,
 }
 
 impl AsmFunctionBuilder {
@@ -183,8 +218,10 @@ impl AsmFunctionBuilder {
         Self {
             stacksize: 0,
             blocks: vec![],
-            
-            registers : HashMap::new(),
+            freeowned: vec![5, 6, 7, 28],
+            freetemp: vec![29, 30, 31],
+
+            registers: HashMap::new(),
         }
     }
 
@@ -192,11 +229,43 @@ impl AsmFunctionBuilder {
         self.blocks.push(AsmBasicBlock::new());
     }
 
-    fn allocate_reg(&mut self) -> ValueCell {
-        todo!()
+    fn allocate_reg(&mut self, reg: middleend::inst::Register) -> ValueCell {
+        if self.freeowned.len() <= 0 {
+            let offset = ValueCell::StackOffset(self.stacksize as i64);
+            self.stacksize += 8;
+            self.registers.insert(reg, offset);
+            offset
+        } else {
+            let register = ValueCell::Register(self.freeowned.pop().unwrap());
+            self.registers.insert(reg, register);
+            register
+        }
     }
 
-    fn add_instruction(&mut self) {
+    fn get_reg(&mut self, reg: middleend::inst::Register) -> (Vec<AsmInstruction>, usize) {
+        match self.registers.get(&reg) {
+            Some(ValueCell::Register(reg)) => (vec![], *reg),
+            Some(ValueCell::StackOffset(offset)) => {
+                let target = self.freetemp.pop().unwrap().clone();
+                (vec![AsmInstruction::Ld(target, 2, *offset)], target)
+            }
+            None => unreachable!(),
+        }
+    }
 
+    fn store_reg(&mut self, reg: middleend::inst::Register, tmpreg: usize) -> Vec<AsmInstruction> {
+        match self.registers.get(&reg) {
+            Some(ValueCell::Register(_)) => vec![],
+            Some(ValueCell::StackOffset(offset)) => vec![AsmInstruction::Sd(tmpreg, 2, *offset)],
+            None => unreachable!(),
+        }
+    }
+
+    fn release_temp(&mut self) {
+        self.freetemp = vec![29, 30, 31];
+    }
+
+    fn add_instruction(&mut self, inst : AsmInstruction) {
+        self.blocks.last_mut().unwrap().push(inst);
     }
 }
