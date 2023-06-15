@@ -35,6 +35,6 @@ main:
     ld x29, 40(x2)
     add x31, x30, x29
     sd x31, 48(x2)
-    ld x30, 48(x2)
-    addi x10, x30, 0
+    ld x31, 48(x2)
+    addi x10, x31, 0
     ret
