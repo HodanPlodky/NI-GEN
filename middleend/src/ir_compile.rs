@@ -286,14 +286,17 @@ impl IrCompiler {
             );
 
             for index in 0..func.header.params.len() {
+                let t : RegType = func.header.params[index].1.clone().into();
                 let reg = fn_b.add(
                     I::Arg(ImmI(index as i64)),
-                    func.header.params[index].1.clone().into(),
+                    t
                 );
+                let addr = fn_b.add(I::Alloca(ImmI(8)), RegType::Int);
+                fn_b.add(I::St(RegReg(addr, reg)), RegType::Void);
                 self.env
                     .last_mut()
                     .unwrap()
-                    .insert(func.header.params[index].0.clone(), reg);
+                    .insert(func.header.params[index].0.clone(), addr);
             }
 
             self.compile_stmt(body, &mut fn_b)?;
