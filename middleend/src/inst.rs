@@ -39,8 +39,8 @@ pub enum InstructionType {
     Eql(RegReg),
 
     // functions
-    Fun(ImmS),
     Call(RegRegs),
+    CallDirect(SymRegs),
     Arg(ImmI),
 
     // Terminators
@@ -135,6 +135,8 @@ pub struct Reg(pub Register);
 pub struct RegReg(pub Register, pub Register);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RegRegs(pub Register, pub Vec<Register>);
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct SymRegs(pub Symbol, pub Vec<Register>);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RegRegImm(pub Register, pub Register, pub i64);
 #[derive(Clone, PartialEq, Eq, Debug)]

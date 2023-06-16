@@ -8,7 +8,10 @@ use frontend::{
 };
 
 use crate::{
-    inst::{ImmC, ImmI, Reg, RegReg, RegType, Register, Terminator, TerminatorReg},
+    inst::{
+        ImmC, ImmI, ImmS, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator,
+        TerminatorBranch, TerminatorJump, TerminatorReg,
+    },
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
 };
 
@@ -95,21 +98,21 @@ impl IrCompiler {
                     Operator::Mul => Ok(f_b.add(I::Mul(rr), expr.get_type().into())),
                     Operator::Div => Ok(f_b.add(I::Div(rr), expr.get_type().into())),
                     Operator::Mod => Ok(f_b.add(I::Mod(rr), expr.get_type().into())),
-                    Operator::Lt => todo!(),
-                    Operator::Le => todo!(),
-                    Operator::Gt => todo!(),
-                    Operator::Ge => todo!(),
-                    Operator::Eql => todo!(),
+                    Operator::Lt => Ok(f_b.add(I::Lt(rr), expr.get_type().into())),
+                    Operator::Le => Ok(f_b.add(I::Le(rr), expr.get_type().into())),
+                    Operator::Gt => Ok(f_b.add(I::Gt(rr), expr.get_type().into())),
+                    Operator::Ge => Ok(f_b.add(I::Ge(rr), expr.get_type().into())),
+                    Operator::Eql => Ok(f_b.add(I::Eql(rr), expr.get_type().into())),
                     Operator::Neq => todo!(),
                     Operator::Assign => todo!(),
-                    Operator::BitOr => todo!(),
-                    Operator::Or => todo!(),
-                    Operator::BitAnd => todo!(),
-                    Operator::And => todo!(),
+                    Operator::BitOr => Ok(f_b.add(I::Or(rr), expr.get_type().into())),
+                    Operator::Or => Ok(f_b.add(I::Or(rr), expr.get_type().into())),
+                    Operator::BitAnd => Ok(f_b.add(I::And(rr), expr.get_type().into())),
+                    Operator::And => Ok(f_b.add(I::And(rr), expr.get_type().into())),
                     Operator::Not => todo!(),
                     Operator::BitNot => todo!(),
-                    Operator::ShiftLeft => todo!(),
-                    Operator::ShiftRight => todo!(),
+                    Operator::ShiftLeft => Ok(f_b.add(I::Shl(rr), expr.get_type().into())),
+                    Operator::ShiftRight => Ok(f_b.add(I::Shr(rr), expr.get_type().into())),
                     _ => unreachable!(),
                 }
             }
@@ -121,7 +124,22 @@ impl IrCompiler {
                 let reg = self.get_addreg(name.clone())?;
                 Ok(f_b.add(I::Ld(Reg(reg)), expr.get_type().into()))
             }
-            ExprType::Call(_, _) => todo!(),
+            ExprType::Call(target, args) => {
+                let mut args_regs: Vec<Register> = vec![];
+                for arg in args {
+                    args_regs.push(self.compile_expr(arg, f_b)?);
+                }
+                match &target.value {
+                    ExprType::Ident(name) if self.get_addreg(name.clone()).is_err() => Ok(f_b.add(
+                        I::CallDirect(SymRegs(name.clone(), args_regs)),
+                        expr.get_type().into(),
+                    )),
+                    _ => {
+                        let target = self.compile_expr(target, f_b)?;
+                        Ok(f_b.add(I::Call(RegRegs(target, args_regs)), expr.get_type().into()))
+                    }
+                }
+            }
             ExprType::Index(_, _) => todo!(),
             ExprType::Deref(_) => todo!(),
             ExprType::Address(e) => match &e.value {
@@ -177,7 +195,7 @@ impl IrCompiler {
     ) -> Result<(), IrCompErr> {
         let size = match decl.value.var_type {
             TypeDef::Void => unreachable!(),
-            TypeDef::PrimType(PrimType::Int) => 4,
+            TypeDef::PrimType(PrimType::Int) => 8,
             TypeDef::PrimType(PrimType::Char) => 1,
             TypeDef::PointerType(_) => 8,
             TypeDef::Function(_) => todo!(),
@@ -201,7 +219,7 @@ impl IrCompiler {
         match &stmt.value {
             StatementType::Expr(e) => match &e.value {
                 ExprType::BinOp(Operator::Assign, l, r) => self.compile_assign(l, r, f_b)?,
-                _ => todo!(),
+                _ => _ = self.compile_expr(e, f_b)?,
             },
             StatementType::VarDecl(decl) => self.compile_vardecl(decl, f_b)?,
             StatementType::Block(stmts) => {
@@ -209,8 +227,42 @@ impl IrCompiler {
                     self.compile_stmt(s, f_b)?;
                 }
             }
-            StatementType::If(_, _) => todo!(),
-            StatementType::IfElse(_, _, _) => todo!(),
+            StatementType::If(guard, block) => {
+                let guard_reg = self.compile_expr(guard, f_b)?;
+                let then = f_b.create_bb();
+                let after = f_b.create_bb();
+                f_b.add(
+                    I::Branch(TerminatorBranch(guard_reg, then, after)),
+                    RegType::Void,
+                );
+                f_b.set_bb(then);
+                self.compile_stmt(block, f_b)?;
+                if !f_b.terminated() {
+                    f_b.add(I::Jmp(TerminatorJump(after)), RegType::Void);
+                }
+                f_b.set_bb(after);
+            }
+            StatementType::IfElse(guard, then_block, else_block) => {
+                let guard_reg = self.compile_expr(guard, f_b)?;
+                let then_bb = f_b.create_bb();
+                let else_bb = f_b.create_bb();
+                let after = f_b.create_bb();
+                f_b.add(
+                    I::Branch(TerminatorBranch(guard_reg, then_bb, else_bb)),
+                    RegType::Void,
+                );
+                f_b.set_bb(then_bb);
+                self.compile_stmt(then_block, f_b)?;
+                if !f_b.terminated() {
+                    f_b.add(I::Jmp(TerminatorJump(after)), RegType::Void);
+                }
+                f_b.set_bb(else_bb);
+                self.compile_stmt(else_block, f_b)?;
+                if !f_b.terminated() {
+                    f_b.add(I::Jmp(TerminatorJump(after)), RegType::Void);
+                }
+                f_b.set_bb(after);
+            }
             StatementType::For(_, _, _, _) => todo!(),
             StatementType::While(_, _) => todo!(),
             StatementType::Break => todo!(),
@@ -232,6 +284,17 @@ impl IrCompiler {
                 func.header.params.len() as u64,
                 func.header.ret_type.clone().into(),
             );
+
+            for index in 0..func.header.params.len() {
+                let reg = fn_b.add(
+                    I::Arg(ImmI(index as i64)),
+                    func.header.params[index].1.clone().into(),
+                );
+                self.env
+                    .last_mut()
+                    .unwrap()
+                    .insert(func.header.params[index].0.clone(), reg);
+            }
 
             self.compile_stmt(body, &mut fn_b)?;
             if !fn_b.terminated() {

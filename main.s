@@ -4,6 +4,7 @@ _start:
     addi a7, zero, 93
     ecall
 main:
+    andi x2, x2, -56
     addi x28, x0, 1
     addi x7, x0, 2
     add x6, x28, x7
@@ -37,4 +38,5 @@ main:
     sd x31, 48(x2)
     ld x31, 48(x2)
     addi x10, x31, 0
+    andi x2, x2, 56
     ret

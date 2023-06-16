@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 use crate::{
     inst::{
         BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,
-        Register, TerminatorBranch, TerminatorJump, TerminatorReg,
+        Register, TerminatorBranch, TerminatorJump, TerminatorReg, ImmS,
     },
     ir::{Function, IrProgram},
 };
@@ -367,8 +367,8 @@ impl Interpret {
                 InstructionType::Eql(regs) => {
                     self.logic_bin_op(inst.clone(), regs, &|a, b| a == b, &|a, b| a == b)?
                 }
-                InstructionType::Fun(_) => todo!(),
                 InstructionType::Call(_) => todo!(),
+                InstructionType::CallDirect(_) => todo!(),
                 InstructionType::Arg(_) => todo!(),
                 InstructionType::Ret(_) | InstructionType::Exit(_) => {
                     terminated = true;

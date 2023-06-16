@@ -13,7 +13,7 @@ type Rd = usize;
 type Imm = i64;
 type Offset = i64;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum AsmInstruction {
     Lui(Rd, Imm),
     Auipc(Rd, Imm),
@@ -169,8 +169,8 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
         middleend::inst::InstructionType::Gt(_) => todo!(),
         middleend::inst::InstructionType::Ge(_) => todo!(),
         middleend::inst::InstructionType::Eql(_) => todo!(),
-        middleend::inst::InstructionType::Fun(_) => todo!(),
         middleend::inst::InstructionType::Call(_) => todo!(),
+        middleend::inst::InstructionType::CallDirect(_) => todo!(),
         middleend::inst::InstructionType::Arg(_) => todo!(),
         middleend::inst::InstructionType::Ret(_) => builder.add_instruction(AsmInstruction::Ret),
         middleend::inst::InstructionType::Exit(_) => (),
@@ -216,10 +216,41 @@ impl AsmFunctionBuilder {
         }
     }
 
+    fn add_epilogue(block: AsmBasicBlock, stacksize: usize) -> AsmBasicBlock {
+        let mut block = block;
+        match block.last() {
+            Some(AsmInstruction::Ret) => {
+                block.pop();
+                block.push(AsmInstruction::Andi(2, 2, stacksize as i64));
+                block.push(AsmInstruction::Ret);
+                block
+            }
+            _ => block,
+        }
+    }
+
     fn build(self) -> AsmFunction {
+        if self.stacksize == 0 {
+            return AsmFunction {
+                name : self.name,
+                blocks : self.blocks,
+            }
+        }
+        // epilogues
+        let mut blocks: Vec<AsmBasicBlock> = self
+            .blocks
+            .into_iter()
+            .map(|x| AsmFunctionBuilder::add_epilogue(x, self.stacksize))
+            .collect();
+
+        // prolog
+        blocks
+            .first_mut()
+            .expect("Totally empty function")
+            .insert(0, AsmInstruction::Andi(2, 2, -(self.stacksize as i64)));
         AsmFunction {
-            name : self.name,
-            blocks : self.blocks,
+            name: self.name,
+            blocks,
         }
     }
 

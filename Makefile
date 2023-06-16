@@ -14,5 +14,5 @@ compile:
 
 gdb: compile
 	qemu-riscv64 -L /usr/riscv64-linux-gnu/ -g 1234 $(FILE) &
-	riscv64-linux-gnu-gdb -ex 'target remote localhost:1234'
+	riscv64-linux-gnu-gdb -ex 'target remote localhost:1234' -ex 'file $(FILE)'
 

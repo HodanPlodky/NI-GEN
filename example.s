@@ -13,7 +13,7 @@ main:
     addi a2, zero, 10
     ecall
 
-    li a0, 40
+    li a0, 20
     
     mv s0, ra
     call fib

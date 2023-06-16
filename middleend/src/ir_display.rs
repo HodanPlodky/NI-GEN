@@ -1,23 +1,18 @@
 use std::fmt::Display;
 
 use crate::{
-    inst::{BasicBlock, Instruction, InstructionType, RegType, Register, ImmI, Reg, TerminatorReg, RegReg, ImmC},
+    inst::{
+        BasicBlock, ImmC, ImmI, ImmS, Instruction, InstructionType, Reg, RegReg, RegRegs, RegType,
+        Register, TerminatorBranch, TerminatorJump, TerminatorReg, SymRegs,
+    },
     ir::{Function, IrProgram},
 };
 
-fn reg_view(reg : Register) -> String {
+fn reg_view(reg: Register) -> String {
     if reg.0 {
-        "g(".to_string()
-            + reg.1.to_string().as_str()
-            + ","
-            + reg.2.to_string().as_str()
-            + ")"
+        "g(".to_string() + reg.1.to_string().as_str() + "," + reg.2.to_string().as_str() + ")"
     } else {
-        "(".to_string()
-            + reg.1.to_string().as_str()
-            + ","
-            + reg.2.to_string().as_str()
-            + ")"
+        "(".to_string() + reg.1.to_string().as_str() + "," + reg.2.to_string().as_str() + ")"
     }
 }
 
@@ -26,38 +21,66 @@ impl Display for InstructionType {
         match self {
             InstructionType::Ldi(ImmI(n)) => write!(f, "ldi {}", n),
             InstructionType::Ldc(ImmC(n)) => write!(f, "ldc {}", n),
-            InstructionType::Ld(Reg(reg)) => write!(f, "ld [{}]", reg_view(*reg)), 
-            InstructionType::St(RegReg(addr, val)) => write!(f, "store [{}] {}", reg_view(*addr), reg_view(*val)),
-            InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n), 
+            InstructionType::Ld(Reg(reg)) => write!(f, "ld [{}]", reg_view(*reg)),
+            InstructionType::St(RegReg(addr, val)) => {
+                write!(f, "store [{}] {}", reg_view(*addr), reg_view(*val))
+            }
+            InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n),
             InstructionType::Allocg(_) => todo!(),
             InstructionType::Cpy(_) => todo!(),
             InstructionType::Gep(_) => todo!(),
-            InstructionType::Add(RegReg(l, r)) => write!(f, "add {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Sub(RegReg(l, r)) => write!(f, "sub {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Mul(RegReg(l, r)) => write!(f, "mul {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Div(RegReg(l, r)) => write!(f, "div {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Mod(RegReg(l, r)) => write!(f, "mod {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Shr(_) => todo!(),
-            InstructionType::Shl(_) => todo!(),
-            InstructionType::And(_) => todo!(),
-            InstructionType::Or(_) => todo!(),
-            InstructionType::Xor(_) => todo!(),
+            InstructionType::Add(RegReg(l, r)) => {
+                write!(f, "add {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Sub(RegReg(l, r)) => {
+                write!(f, "sub {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Mul(RegReg(l, r)) => {
+                write!(f, "mul {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Div(RegReg(l, r)) => {
+                write!(f, "div {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Mod(RegReg(l, r)) => {
+                write!(f, "mod {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Shr(RegReg(l, r)) => write!(f, "shr {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Shl(RegReg(l, r)) => write!(f, "shl {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::And(RegReg(l, r)) => write!(f, "and {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Or(RegReg(l, r)) => write!(f, "or {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Xor(RegReg(l, r)) => write!(f, "xor {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Neg(_) => todo!(),
-            InstructionType::Lt(_) => todo!(),
-            InstructionType::Le(_) => todo!(),
-            InstructionType::Gt(_) => todo!(),
-            InstructionType::Ge(_) => todo!(),
-            InstructionType::Eql(_) => todo!(),
-            InstructionType::Fun(_) => todo!(),
-            InstructionType::Call(_) => todo!(),
-            InstructionType::Arg(_) => todo!(),
+            InstructionType::Lt(RegReg(l, r)) => write!(f, "lt {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Le(RegReg(l, r)) => write!(f, "le {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Gt(RegReg(l, r)) => write!(f, "gt {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Ge(RegReg(l, r)) => write!(f, "ge {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Eql(RegReg(l, r)) => write!(f, "eql {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Call(RegRegs(reg, regs)) => write!(
+                f,
+                "call {} [{}]",
+                reg_view(*reg),
+                regs.into_iter()
+                    .map(|x| reg_view(*x))
+                    .fold("".to_string(), |acc, x| acc + x.as_str())
+            ),
+            InstructionType::CallDirect(SymRegs(sym, regs)) => write!(
+                f,
+                "calldirect {} [{}]",
+                sym,
+                regs.into_iter()
+                    .map(|x| reg_view(*x))
+                    .fold("".to_string(), |acc, x| acc + x.as_str())
+            ),
+            InstructionType::Arg(ImmI(index)) => write!(f, "arg {}", index),
             InstructionType::Ret(_) => write!(f, "ret"),
             InstructionType::Retr(TerminatorReg(reg)) => write!(f, "retr {}", reg_view(*reg)),
-            InstructionType::Jmp(_) => todo!(),
-            InstructionType::Branch(_) => todo!(),
+            InstructionType::Jmp(TerminatorJump(to)) => write!(f, "jmp BB{}", to),
+            InstructionType::Branch(TerminatorBranch(reg, true_bb, false_bb)) => {
+                write!(f, "branch {} BB{} BB{}", reg_view(*reg), true_bb, false_bb)
+            }
             InstructionType::Print(_) => todo!(),
             InstructionType::Phi(_) => todo!(),
-            InstructionType::Exit(_) =>  write!(f, "exit"),
+            InstructionType::Exit(_) => write!(f, "exit"),
         }
     }
 }
@@ -77,7 +100,7 @@ impl Display for Instruction {
         if self.reg_type == RegType::Void {
             write!(f, "{}", self.data)
         } else {
-            let reg_string =  reg_view(self.id);
+            let reg_string = reg_view(self.id);
             write!(f, "{} : {} = {}", reg_string, self.reg_type, self.data)
         }
     }
