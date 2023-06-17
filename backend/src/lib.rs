@@ -3,7 +3,7 @@ pub mod emit;
 use std::collections::HashMap;
 
 use middleend::{
-    inst::{BasicBlock, ImmI, Instruction, RegReg, TerminatorReg},
+    inst::{BasicBlock, ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorReg, TerminatorJump},
     ir::{Function, IrProgram},
 };
 
@@ -13,7 +13,7 @@ type Rd = usize;
 type Imm = i64;
 type Offset = i64;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum AsmInstruction {
     Lui(Rd, Imm),
     Auipc(Rd, Imm),
@@ -62,7 +62,7 @@ enum AsmInstruction {
     Sra(Rd, Rd, Rd),
 
     // pseudo instructions
-    Call(Imm),
+    Call(String),
     Ret,
 }
 
@@ -139,9 +139,31 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
             builder.release_temp();
         }
         middleend::inst::InstructionType::Ldc(_) => todo!(),
-        middleend::inst::InstructionType::Ld(_) => todo!(),
-        middleend::inst::InstructionType::St(_) => todo!(),
-        middleend::inst::InstructionType::Alloca(_) => todo!(),
+        middleend::inst::InstructionType::Ld(Reg(rs1)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            match builder.get_offset(*rs1) {
+                Some(offset) => {
+                    builder.add_instruction(AsmInstruction::Ld(out, 2, offset));
+                }
+                None => todo!(),
+            }
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::St(RegReg(rs1, rs2)) => {
+            let input = builder.get_reg(*rs2);
+            match builder.get_offset(*rs1) {
+                Some(offset) => {
+                    builder.add_instruction(AsmInstruction::Sd(input, 2, offset));
+                }
+                None => todo!(),
+            }
+        }
+        middleend::inst::InstructionType::Alloca(ImmI(size)) => {
+            let offset = builder.allocate_stack(*size);
+            builder.store_offset(reg, offset);
+        }
         middleend::inst::InstructionType::Allocg(_) => todo!(),
         middleend::inst::InstructionType::Cpy(_) => todo!(),
         middleend::inst::InstructionType::Gep(_) => todo!(),
@@ -170,8 +192,31 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
         middleend::inst::InstructionType::Ge(_) => todo!(),
         middleend::inst::InstructionType::Eql(_) => todo!(),
         middleend::inst::InstructionType::Call(_) => todo!(),
-        middleend::inst::InstructionType::CallDirect(_) => todo!(),
-        middleend::inst::InstructionType::Arg(_) => todo!(),
+        middleend::inst::InstructionType::CallDirect(SymRegs(sym, regs)) => {
+            if regs.len() >= 8 {
+                todo!();
+            }
+            for i in 0..regs.len() {
+                let src = builder.get_reg(regs[i]);
+                builder.add_instruction(AsmInstruction::Addi(a[i], src, 0));
+                builder.release_temp();
+            }
+            let offset = builder.force_store(1);
+            builder.add_instruction(AsmInstruction::Call(sym.clone()));
+            builder.add_instruction(AsmInstruction::Ld(1, 2, offset));
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            builder.add_instruction(AsmInstruction::Addi(out, a[0], 0));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Arg(ImmI(imm)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            builder.add_instruction(AsmInstruction::Addi(out, a[*imm as usize], 0));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
         middleend::inst::InstructionType::Ret(_) => builder.add_instruction(AsmInstruction::Ret),
         middleend::inst::InstructionType::Exit(_) => (),
         middleend::inst::InstructionType::Retr(TerminatorReg(reg)) => {
@@ -180,7 +225,7 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
             builder.add_instruction(AsmInstruction::Ret);
             builder.release_temp();
         }
-        middleend::inst::InstructionType::Jmp(_) => todo!(),
+        middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => todo!(),
         middleend::inst::InstructionType::Branch(_) => todo!(),
         middleend::inst::InstructionType::Print(_) => todo!(),
         middleend::inst::InstructionType::Phi(_) => todo!(),
@@ -193,6 +238,8 @@ enum ValueCell {
     StackOffset(i64),
 }
 
+type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
+
 struct AsmFunctionBuilder {
     name: String,
     stacksize: usize,
@@ -201,6 +248,7 @@ struct AsmFunctionBuilder {
     registers: HashMap<middleend::inst::Register, ValueCell>,
     freeowned: Vec<usize>,
     freetemp: Vec<usize>,
+    offsets: OffsetEnv,
 }
 
 impl AsmFunctionBuilder {
@@ -213,6 +261,7 @@ impl AsmFunctionBuilder {
             freetemp: vec![29, 30, 31],
 
             registers: HashMap::new(),
+            offsets: HashMap::new(),
         }
     }
 
@@ -221,7 +270,7 @@ impl AsmFunctionBuilder {
         match block.last() {
             Some(AsmInstruction::Ret) => {
                 block.pop();
-                block.push(AsmInstruction::Andi(2, 2, stacksize as i64));
+                block.push(AsmInstruction::Addi(2, 2, stacksize as i64));
                 block.push(AsmInstruction::Ret);
                 block
             }
@@ -232,9 +281,9 @@ impl AsmFunctionBuilder {
     fn build(self) -> AsmFunction {
         if self.stacksize == 0 {
             return AsmFunction {
-                name : self.name,
-                blocks : self.blocks,
-            }
+                name: self.name,
+                blocks: self.blocks,
+            };
         }
         // epilogues
         let mut blocks: Vec<AsmBasicBlock> = self
@@ -247,7 +296,7 @@ impl AsmFunctionBuilder {
         blocks
             .first_mut()
             .expect("Totally empty function")
-            .insert(0, AsmInstruction::Andi(2, 2, -(self.stacksize as i64)));
+            .insert(0, AsmInstruction::Addi(2, 2, -(self.stacksize as i64)));
         AsmFunction {
             name: self.name,
             blocks,
@@ -291,6 +340,27 @@ impl AsmFunctionBuilder {
             }
             None => unreachable!(),
         }
+    }
+
+    fn force_store(&mut self, reg: usize) -> Offset {
+        let offset = self.stacksize;
+        self.stacksize += 8;
+        self.add_instruction(AsmInstruction::Sd(reg, 2, offset as i64));
+        offset as i64
+    }
+
+    fn allocate_stack(&mut self, size: i64) -> Offset {
+        let offset = self.stacksize;
+        self.stacksize += size as usize;
+        offset as i64
+    }
+
+    fn store_offset(&mut self, reg: middleend::inst::Register, offset: Offset) {
+        self.offsets.insert(reg, offset);
+    }
+
+    fn get_offset(&mut self, reg: middleend::inst::Register) -> Option<Offset> {
+        self.offsets.get(&reg).copied()
     }
 
     fn release_temp(&mut self) {

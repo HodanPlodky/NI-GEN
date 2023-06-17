@@ -3,8 +3,5 @@ int f() {
 }
 
 int main() {
-    int x;
-    f();
-    x = f();
     return f();
 }

@@ -4,39 +4,30 @@ _start:
     addi a7, zero, 93
     ecall
 main:
-    andi x2, x2, -56
-    addi x28, x0, 1
-    addi x7, x0, 2
-    add x6, x28, x7
-    addi x5, x0, 3
-    ld x31, 0(x2)
-    add x31, x6, x5
-    sd x31, 0(x2)
-    ld x31, 8(x2)
-    addi x31, x0, 4
-    sd x31, 8(x2)
+    addi x2, x2, -24
+    addi x28, x0, 5
+    sd x28, 0(x2)
+    ld x7, 0(x2)
+    addi x10, x7, 0
+    sd x1, 8(x2)
+    call inc
+    ld x1, 8(x2)
+    addi x6, x10, 0
+    addi x5, x0, 2
     ld x31, 16(x2)
-    ld x30, 0(x2)
-    ld x29, 8(x2)
-    add x31, x30, x29
+    add x31, x6, x5
     sd x31, 16(x2)
-    ld x31, 24(x2)
-    addi x31, x0, 5
-    sd x31, 24(x2)
-    ld x31, 32(x2)
-    ld x30, 16(x2)
-    ld x29, 24(x2)
-    add x31, x30, x29
-    sd x31, 32(x2)
-    ld x31, 40(x2)
-    addi x31, x0, 6
-    sd x31, 40(x2)
-    ld x31, 48(x2)
-    ld x30, 32(x2)
-    ld x29, 40(x2)
-    add x31, x30, x29
-    sd x31, 48(x2)
-    ld x31, 48(x2)
+    ld x31, 16(x2)
     addi x10, x31, 0
-    andi x2, x2, 56
+    addi x2, x2, 24
+    ret
+inc:
+    addi x2, x2, -8
+    addi x28, x10, 0
+    sd x28, 0(x2)
+    ld x7, 0(x2)
+    addi x6, x0, 1
+    add x5, x7, x6
+    addi x10, x5, 0
+    addi x2, x2, 8
     ret
