@@ -3,7 +3,7 @@ pub mod emit;
 use std::collections::HashMap;
 
 use middleend::{
-    inst::{BasicBlock, ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorReg, TerminatorJump},
+    inst::{BasicBlock, ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorJump, TerminatorReg, TerminatorBranch},
     ir::{Function, IrProgram},
 };
 
@@ -225,8 +225,14 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
             builder.add_instruction(AsmInstruction::Ret);
             builder.release_temp();
         }
-        middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => todo!(),
-        middleend::inst::InstructionType::Branch(_) => todo!(),
+        middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => {
+            builder.add_instruction(AsmInstruction::Jal(0, *bb_index as i64))
+        }
+        middleend::inst::InstructionType::Branch(TerminatorBranch(reg, true_bb, false_bb)) => {
+            let input = builder.get_reg(*reg);
+            builder.add_instruction(AsmInstruction::Beq(input, 0, *false_bb as i64));
+            builder.release_temp();
+        },
         middleend::inst::InstructionType::Print(_) => todo!(),
         middleend::inst::InstructionType::Phi(_) => todo!(),
     }
