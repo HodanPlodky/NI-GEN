@@ -3,7 +3,10 @@ pub mod emit;
 use std::collections::HashMap;
 
 use middleend::{
-    inst::{BasicBlock, ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorJump, TerminatorReg, TerminatorBranch},
+    inst::{
+        BasicBlock, ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump,
+        TerminatorReg,
+    },
     ir::{Function, IrProgram},
 };
 
@@ -18,15 +21,15 @@ enum AsmInstruction {
     Lui(Rd, Imm),
     Auipc(Rd, Imm),
 
-    Jal(Rd, Offset),
+    Jal(Rd, Offset, String),
     Jalr(Rd, Rd, Offset),
 
-    Beq(Rd, Rd, Offset),
-    Bne(Rd, Rd, Offset),
-    Blt(Rd, Rd, Offset),
-    Bge(Rd, Rd, Offset),
-    Bltu(Rd, Rd, Offset),
-    Bgeu(Rd, Rd, Offset),
+    Beq(Rd, Rd, Offset, String),
+    Bne(Rd, Rd, Offset, String),
+    Blt(Rd, Rd, Offset, String),
+    Bge(Rd, Rd, Offset, String),
+    Bltu(Rd, Rd, Offset, String),
+    Bgeu(Rd, Rd, Offset, String),
 
     Lb(Rd, Rd, Offset),
     Lh(Rd, Rd, Offset),
@@ -66,6 +69,16 @@ enum AsmInstruction {
     Ret,
 }
 
+impl AsmInstruction {
+    fn size(&self) -> usize {
+        match self {
+            AsmInstruction::Call(_) => 4,
+            AsmInstruction::Add(_, _, _) => 4,
+            _ => 4,
+        }
+    }
+}
+
 type AsmBasicBlock = Vec<AsmInstruction>;
 
 struct AsmFunction {
@@ -91,6 +104,7 @@ impl Default for AsmProgram {
 
 pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
     let mut startbuilder = AsmFunctionBuilder::new("global".to_string());
+    startbuilder.create_block();
     ir_program
         .glob
         .iter()
@@ -113,6 +127,7 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
 
 fn asm_func(function: Function) -> AsmFunction {
     let mut builder = AsmFunctionBuilder::new(function.name);
+
     function
         .blocks
         .into_iter()
@@ -122,6 +137,7 @@ fn asm_func(function: Function) -> AsmFunction {
 }
 
 fn asm_basicblock(block: BasicBlock, builder: &mut AsmFunctionBuilder) {
+    builder.actual_bb = builder.create_block();
     block
         .iter()
         .for_each(|x| basic_instruction_selection(x, builder))
@@ -176,7 +192,15 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
             builder.store_reg(reg, out);
             builder.release_temp();
         }
-        middleend::inst::InstructionType::Sub(_) => todo!(),
+        middleend::inst::InstructionType::Sub(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm_r1 = builder.get_reg(*rs1);
+            let asm_r2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Sub(out, asm_r1, asm_r2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        },
         middleend::inst::InstructionType::Mul(_) => todo!(),
         middleend::inst::InstructionType::Div(_) => todo!(),
         middleend::inst::InstructionType::Mod(_) => todo!(),
@@ -186,8 +210,17 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
         middleend::inst::InstructionType::Or(_) => todo!(),
         middleend::inst::InstructionType::Xor(_) => todo!(),
         middleend::inst::InstructionType::Neg(_) => todo!(),
-        middleend::inst::InstructionType::Lt(_) => todo!(),
         middleend::inst::InstructionType::Le(_) => todo!(),
+        middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm1 = builder.get_reg(*rs1);
+            let asm2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Slt(out, asm1, asm2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+
+        }
         middleend::inst::InstructionType::Gt(_) => todo!(),
         middleend::inst::InstructionType::Ge(_) => todo!(),
         middleend::inst::InstructionType::Eql(_) => todo!(),
@@ -226,13 +259,18 @@ fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuil
             builder.release_temp();
         }
         middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => {
-            builder.add_instruction(AsmInstruction::Jal(0, *bb_index as i64))
+            builder.add_instruction(AsmInstruction::Jal(0, *bb_index as i64, builder.name.clone()))
         }
-        middleend::inst::InstructionType::Branch(TerminatorBranch(reg, true_bb, false_bb)) => {
+        middleend::inst::InstructionType::Branch(TerminatorBranch(reg, _, false_bb)) => {
             let input = builder.get_reg(*reg);
-            builder.add_instruction(AsmInstruction::Beq(input, 0, *false_bb as i64));
+            builder.add_instruction(AsmInstruction::Beq(
+                input,
+                0,
+                *false_bb as i64,
+                builder.name.clone(),
+            ));
             builder.release_temp();
-        },
+        }
         middleend::inst::InstructionType::Print(_) => todo!(),
         middleend::inst::InstructionType::Phi(_) => todo!(),
     }
@@ -249,6 +287,7 @@ type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
 struct AsmFunctionBuilder {
     name: String,
     stacksize: usize,
+    actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
 
     registers: HashMap<middleend::inst::Register, ValueCell>,
@@ -262,7 +301,8 @@ impl AsmFunctionBuilder {
         Self {
             name,
             stacksize: 0,
-            blocks: vec![vec![]],
+            actual_bb: 0,
+            blocks: vec![],
             freeowned: vec![5, 6, 7, 28],
             freetemp: vec![29, 30, 31],
 
@@ -284,6 +324,58 @@ impl AsmFunctionBuilder {
         }
     }
 
+    fn bb_size(block: &AsmBasicBlock) -> usize {
+        block.len() * 4
+        //block.iter().map(|x| x.size()).sum()
+    }
+
+    fn patch_jumps(offsets: &Vec<usize>, block: AsmBasicBlock) -> AsmBasicBlock {
+        let mut block = block;
+        match block.last() {
+            Some(AsmInstruction::Jal(rd, offset, name)) => {
+                let rd = *rd;
+                let offset = *offset;
+                let name = name.clone();
+                block.pop();
+                block.push(AsmInstruction::Jal(
+                    rd,
+                    offsets[offset as usize] as i64,
+                    name,
+                ));
+                block
+            }
+            Some(AsmInstruction::Beq(rd1, rd2, offset, name)) => {
+                let rd1 = *rd1;
+                let rd2 = *rd2;
+                let offset = *offset;
+                let name = name.clone();
+                block.pop();
+                block.push(AsmInstruction::Beq(
+                    rd1,
+                    rd2,
+                    offsets[offset as usize] as i64,
+                    name,
+                ));
+                block
+            }
+            Some(AsmInstruction::Bne(rd1, rd2, offset, name)) => {
+                let rd1 = *rd1;
+                let rd2 = *rd2;
+                let offset = *offset;
+                let name = name.clone();
+                block.pop();
+                block.push(AsmInstruction::Bne(
+                    rd1,
+                    rd2,
+                    offsets[offset as usize] as i64,
+                    name,
+                ));
+                block
+            }
+            _ => block,
+        }
+    }
+
     fn build(self) -> AsmFunction {
         if self.stacksize == 0 {
             return AsmFunction {
@@ -291,6 +383,7 @@ impl AsmFunctionBuilder {
                 blocks: self.blocks,
             };
         }
+
         // epilogues
         let mut blocks: Vec<AsmBasicBlock> = self
             .blocks
@@ -303,14 +396,34 @@ impl AsmFunctionBuilder {
             .first_mut()
             .expect("Totally empty function")
             .insert(0, AsmInstruction::Addi(2, 2, -(self.stacksize as i64)));
+
+        let lens: Vec<usize> = blocks
+            .iter()
+            .map(|x| AsmFunctionBuilder::bb_size(x))
+            .collect();
+
+        let mut offsets: Vec<usize> = vec![];
+        let mut act = 0;
+        for len in lens {
+            offsets.push(act);
+            act += len;
+        }
+
+        let blocks: Vec<AsmBasicBlock> = blocks
+            .into_iter()
+            .map(|x| AsmFunctionBuilder::patch_jumps(&offsets, x))
+            .collect();
+
+
         AsmFunction {
             name: self.name,
             blocks,
         }
     }
 
-    fn create_block(&mut self) {
+    fn create_block(&mut self) -> usize {
         self.blocks.push(AsmBasicBlock::new());
+        self.blocks.len() - 1
     }
 
     fn allocate_reg(&mut self, reg: middleend::inst::Register) -> ValueCell {

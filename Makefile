@@ -1,6 +1,6 @@
 AS = riscv64-linux-gnu-as
 CC = riscv64-linux-gnu-gcc
-CFLAGS = -ggdb -fomit-frame-pointer # -fno-pic
+CFLAGS = -ggdb -fomit-frame-pointer -march=rv64g # -fno-pic
 
 FILE=main
 
