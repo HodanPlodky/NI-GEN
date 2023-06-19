@@ -25,7 +25,7 @@ pub enum InterpretError {
 }
 
 pub fn run(program: IrProgram) -> Result<i64, InterpretError> {
-    let mut inter = Interpret::new(program, 1024);
+    let mut inter = Interpret::new(program, 4096 * 4096);
     inter.run()
 }
 

@@ -3,14 +3,26 @@ _start:
     call main
     addi a7, zero, 93
     ecall
+main:
+    addi x2, x2, -8
+    addi x28, x0, 5
+    addi x10, x28, 0
+    sd x1, 0(x2)
+    call fib
+    ld x1, 0(x2)
+    addi x7, x10, 0
+    addi x10, x7, 0
+    addi x2, x2, 8
+    ret
 fib:
     addi x2, x2, -104
     addi x28, x10, 0
     sd x28, 0(x2)
     ld x7, 0(x2)
-    addi x6, x0, 2
-    slt x5, x7, x6
-    beq x5, x0, fib+56
+    addi x6, x0, 1
+    addi x5, x7, 1
+    slt x5, x5, x6
+    beq x5, x0, fib+60
     ld x31, 8(x2)
     ld x31, 0(x2)
     sd x31, 8(x2)
@@ -64,15 +76,4 @@ fib:
     ld x31, 96(x2)
     addi x10, x31, 0
     addi x2, x2, 104
-    ret
-main:
-    addi x2, x2, -8
-    addi x28, x0, 20
-    addi x10, x28, 0
-    sd x1, 0(x2)
-    call fib
-    ld x1, 0(x2)
-    addi x7, x10, 0
-    addi x10, x7, 0
-    addi x2, x2, 8
     ret

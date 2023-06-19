@@ -71,7 +71,16 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Or(_) => todo!(),
         middleend::inst::InstructionType::Xor(_) => todo!(),
         middleend::inst::InstructionType::Neg(_) => todo!(),
-        middleend::inst::InstructionType::Le(_) => todo!(),
+        middleend::inst::InstructionType::Le(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm1 = builder.get_reg(*rs1);
+            let asm2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Addi(out, asm1, 1));
+            builder.add_instruction(AsmInstruction::Slt(out, out, asm2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        },
         middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
