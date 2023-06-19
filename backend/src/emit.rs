@@ -49,6 +49,7 @@ impl Display for AsmInstruction {
             AsmInstruction::Sra(x, y, z) => write!(f, "sra x{}, x{}, x{}", x, y, z),
             AsmInstruction::Call(imm) => write!(f, "call {}", imm),
             AsmInstruction::Ret => write!(f, "ret"),
+            AsmInstruction::Mul(x, y, z) => write!(f, "mul x{}, x{}, x{}", x, y, z),
         }
     }
 }

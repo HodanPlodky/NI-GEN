@@ -40,6 +40,7 @@ pub enum AsmInstruction {
     Srai(Rd, Rd, Imm),
 
     Add(Rd, Rd, Rd),
+    Mul(Rd, Rd, Rd),
     Sub(Rd, Rd, Rd),
     Sll(Rd, Rd, Rd),
     Srl(Rd, Rd, Rd),

@@ -62,7 +62,15 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             builder.store_reg(reg, out);
             builder.release_temp();
         }
-        middleend::inst::InstructionType::Mul(_) => todo!(),
+        middleend::inst::InstructionType::Mul(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm_r1 = builder.get_reg(*rs1);
+            let asm_r2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Mul(out, asm_r1, asm_r2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
         middleend::inst::InstructionType::Div(_) => todo!(),
         middleend::inst::InstructionType::Mod(_) => todo!(),
         middleend::inst::InstructionType::Shr(_) => todo!(),
@@ -76,11 +84,11 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             let out = builder.get_reg(reg);
             let asm1 = builder.get_reg(*rs1);
             let asm2 = builder.get_reg(*rs2);
-            builder.add_instruction(AsmInstruction::Addi(out, asm1, 1));
-            builder.add_instruction(AsmInstruction::Slt(out, out, asm2));
+            builder.add_instruction(AsmInstruction::Addi(out, asm2, 1));
+            builder.add_instruction(AsmInstruction::Slt(out, asm1, out));
             builder.store_reg(reg, out);
             builder.release_temp();
-        },
+        }
         middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);

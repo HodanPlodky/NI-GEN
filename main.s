@@ -5,7 +5,7 @@ _start:
     ecall
 main:
     addi x2, x2, -8
-    addi x28, x0, 5
+    addi x28, x0, 40
     addi x10, x28, 0
     sd x1, 0(x2)
     call fib
@@ -20,8 +20,8 @@ fib:
     sd x28, 0(x2)
     ld x7, 0(x2)
     addi x6, x0, 1
-    addi x5, x7, 1
-    slt x5, x5, x6
+    addi x5, x6, 1
+    slt x5, x7, x5
     beq x5, x0, fib+60
     ld x31, 8(x2)
     ld x31, 0(x2)
