@@ -1,0 +1,137 @@
+use middleend::inst::{
+    ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+};
+
+use crate::{insts::AsmInstruction, AsmFunctionBuilder};
+
+pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuilder) {
+    let a: [usize; 8] = [10, 11, 12, 13, 14, 15, 16, 17];
+    let reg = inst.id;
+    match &inst.data {
+        middleend::inst::InstructionType::Ldi(ImmI(imm)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            builder.add_instruction(AsmInstruction::Addi(out, 0, *imm));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Ldc(_) => todo!(),
+        middleend::inst::InstructionType::Ld(Reg(rs1)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            match builder.get_offset(*rs1) {
+                Some(offset) => {
+                    builder.add_instruction(AsmInstruction::Ld(out, 2, offset));
+                }
+                None => todo!(),
+            }
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::St(RegReg(rs1, rs2)) => {
+            let input = builder.get_reg(*rs2);
+            match builder.get_offset(*rs1) {
+                Some(offset) => {
+                    builder.add_instruction(AsmInstruction::Sd(input, 2, offset));
+                }
+                None => todo!(),
+            }
+        }
+        middleend::inst::InstructionType::Alloca(ImmI(size)) => {
+            let offset = builder.allocate_stack(*size);
+            builder.store_offset(reg, offset);
+        }
+        middleend::inst::InstructionType::Allocg(_) => todo!(),
+        middleend::inst::InstructionType::Cpy(_) => todo!(),
+        middleend::inst::InstructionType::Gep(_) => todo!(),
+        middleend::inst::InstructionType::Add(RegReg(r1, r2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm_r1 = builder.get_reg(*r1);
+            let asm_r2 = builder.get_reg(*r2);
+            builder.add_instruction(AsmInstruction::Add(out, asm_r1, asm_r2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Sub(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm_r1 = builder.get_reg(*rs1);
+            let asm_r2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Sub(out, asm_r1, asm_r2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Mul(_) => todo!(),
+        middleend::inst::InstructionType::Div(_) => todo!(),
+        middleend::inst::InstructionType::Mod(_) => todo!(),
+        middleend::inst::InstructionType::Shr(_) => todo!(),
+        middleend::inst::InstructionType::Shl(_) => todo!(),
+        middleend::inst::InstructionType::And(_) => todo!(),
+        middleend::inst::InstructionType::Or(_) => todo!(),
+        middleend::inst::InstructionType::Xor(_) => todo!(),
+        middleend::inst::InstructionType::Neg(_) => todo!(),
+        middleend::inst::InstructionType::Le(_) => todo!(),
+        middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            let asm1 = builder.get_reg(*rs1);
+            let asm2 = builder.get_reg(*rs2);
+            builder.add_instruction(AsmInstruction::Slt(out, asm1, asm2));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Gt(_) => todo!(),
+        middleend::inst::InstructionType::Ge(_) => todo!(),
+        middleend::inst::InstructionType::Eql(_) => todo!(),
+        middleend::inst::InstructionType::Call(_) => todo!(),
+        middleend::inst::InstructionType::CallDirect(SymRegs(sym, regs)) => {
+            if regs.len() >= 8 {
+                todo!();
+            }
+            for i in 0..regs.len() {
+                let src = builder.get_reg(regs[i]);
+                builder.add_instruction(AsmInstruction::Addi(a[i], src, 0));
+                builder.release_temp();
+            }
+            let offset = builder.force_store(1);
+            builder.add_instruction(AsmInstruction::Call(sym.clone()));
+            builder.add_instruction(AsmInstruction::Ld(1, 2, offset));
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            builder.add_instruction(AsmInstruction::Addi(out, a[0], 0));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Arg(ImmI(imm)) => {
+            builder.allocate_reg(reg);
+            let out = builder.get_reg(reg);
+            builder.add_instruction(AsmInstruction::Addi(out, a[*imm as usize], 0));
+            builder.store_reg(reg, out);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Ret(_) => builder.add_instruction(AsmInstruction::Ret),
+        middleend::inst::InstructionType::Exit(_) => (),
+        middleend::inst::InstructionType::Retr(TerminatorReg(reg)) => {
+            let out = builder.get_reg(*reg);
+            builder.add_instruction(AsmInstruction::Addi(a[0], out, 0));
+            builder.add_instruction(AsmInstruction::Ret);
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => builder.add_instruction(
+            AsmInstruction::Jal(0, *bb_index as i64, builder.name.clone()),
+        ),
+        middleend::inst::InstructionType::Branch(TerminatorBranch(reg, _, false_bb)) => {
+            let input = builder.get_reg(*reg);
+            builder.add_instruction(AsmInstruction::Beq(
+                input,
+                0,
+                *false_bb as i64,
+                builder.name.clone(),
+            ));
+            builder.release_temp();
+        }
+        middleend::inst::InstructionType::Print(_) => todo!(),
+        middleend::inst::InstructionType::Phi(_) => todo!(),
+    }
+}
