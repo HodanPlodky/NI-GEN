@@ -29,7 +29,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             builder.release_temp();
         }
         middleend::inst::InstructionType::St(RegReg(rs1, rs2)) => {
-            let input = builder.get_reg(*rs2);
+            let input = builder.load_reg(*rs2);
             match builder.get_offset(*rs1) {
                 Some(offset) => {
                     builder.add_instruction(AsmInstruction::Sd(input, 2, offset));
@@ -47,8 +47,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Add(RegReg(r1, r2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
-            let asm_r1 = builder.get_reg(*r1);
-            let asm_r2 = builder.get_reg(*r2);
+            let asm_r1 = builder.load_reg(*r1);
+            let asm_r2 = builder.load_reg(*r2);
             builder.add_instruction(AsmInstruction::Add(out, asm_r1, asm_r2));
             builder.store_reg(reg, out);
             builder.release_temp();
@@ -56,8 +56,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Sub(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
-            let asm_r1 = builder.get_reg(*rs1);
-            let asm_r2 = builder.get_reg(*rs2);
+            let asm_r1 = builder.load_reg(*rs1);
+            let asm_r2 = builder.load_reg(*rs2);
             builder.add_instruction(AsmInstruction::Sub(out, asm_r1, asm_r2));
             builder.store_reg(reg, out);
             builder.release_temp();
@@ -65,8 +65,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Mul(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
-            let asm_r1 = builder.get_reg(*rs1);
-            let asm_r2 = builder.get_reg(*rs2);
+            let asm_r1 = builder.load_reg(*rs1);
+            let asm_r2 = builder.load_reg(*rs2);
             builder.add_instruction(AsmInstruction::Mul(out, asm_r1, asm_r2));
             builder.store_reg(reg, out);
             builder.release_temp();
@@ -82,8 +82,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Le(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
-            let asm1 = builder.get_reg(*rs1);
-            let asm2 = builder.get_reg(*rs2);
+            let asm1 = builder.load_reg(*rs1);
+            let asm2 = builder.load_reg(*rs2);
             builder.add_instruction(AsmInstruction::Addi(out, asm2, 1));
             builder.add_instruction(AsmInstruction::Slt(out, asm1, out));
             builder.store_reg(reg, out);
@@ -92,8 +92,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
             builder.allocate_reg(reg);
             let out = builder.get_reg(reg);
-            let asm1 = builder.get_reg(*rs1);
-            let asm2 = builder.get_reg(*rs2);
+            let asm1 = builder.load_reg(*rs1);
+            let asm2 = builder.load_reg(*rs2);
             builder.add_instruction(AsmInstruction::Slt(out, asm1, asm2));
             builder.store_reg(reg, out);
             builder.release_temp();
@@ -107,7 +107,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 todo!();
             }
             for i in 0..regs.len() {
-                let src = builder.get_reg(regs[i]);
+                let src = builder.load_reg(regs[i]);
                 builder.add_instruction(AsmInstruction::Addi(a[i], src, 0));
                 builder.release_temp();
             }
@@ -139,7 +139,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             AsmInstruction::Jal(0, *bb_index as i64, builder.name.clone()),
         ),
         middleend::inst::InstructionType::Branch(TerminatorBranch(reg, _, false_bb)) => {
-            let input = builder.get_reg(*reg);
+            let input = builder.load_reg(*reg);
             builder.add_instruction(AsmInstruction::Beq(
                 input,
                 0,

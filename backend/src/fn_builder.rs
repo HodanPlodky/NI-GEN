@@ -132,12 +132,24 @@ impl AsmFunctionBuilder {
         }
     }
 
-    pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
+    pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
         match self.registers.get(&reg) {
             Some(ValueCell::Register(reg)) => *reg,
             Some(ValueCell::StackOffset(offset)) => {
                 let target = self.freetemp.pop().unwrap().clone();
                 self.add_instruction(AsmInstruction::Ld(target, 2, *offset));
+                target
+            }
+            None => unreachable!(),
+        }
+    }
+
+    pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
+        match self.registers.get(&reg) {
+            Some(ValueCell::Register(reg)) => *reg,
+            Some(ValueCell::StackOffset(offset)) => {
+                let target = self.freetemp.pop().unwrap().clone();
+                //self.add_instruction(AsmInstruction::Ld(target, 2, *offset));
                 target
             }
             None => unreachable!(),
