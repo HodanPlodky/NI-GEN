@@ -2,14 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     insts::{AsmInstruction, Offset},
-    AsmBasicBlock, AsmFunction,
+    AsmBasicBlock, AsmFunction, register_alloc::ValueCell,
 };
-
-#[derive(Clone, Copy)]
-pub enum ValueCell {
-    Register(usize),
-    StackOffset(i64),
-}
 
 pub type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
 
@@ -53,6 +47,10 @@ impl AsmFunctionBuilder {
         }
     }
 
+    /*
+     * This is here because of the compress instructions set
+     * in the RISCV spec, I just elected to ignore them
+     */
     fn bb_size(block: &AsmBasicBlock) -> usize {
         block.len() * 4
         //block.iter().map(|x| x.size()).sum()
@@ -60,49 +58,16 @@ impl AsmFunctionBuilder {
 
     fn patch_jumps(offsets: &Vec<usize>, block: AsmBasicBlock) -> AsmBasicBlock {
         let mut block = block;
-        match block.last() {
-            Some(AsmInstruction::Jal(rd, offset, name)) => {
-                let rd = *rd;
-                let offset = *offset;
-                let name = name.clone();
-                block.pop();
-                block.push(AsmInstruction::Jal(
-                    rd,
-                    offsets[offset as usize] as i64,
-                    name,
-                ));
-                block
+        match block.last_mut() {
+            Some(AsmInstruction::Jal(_, offset, _))
+            | Some(AsmInstruction::Jalr(_, _, offset))
+            | Some(AsmInstruction::Beq(_, _, offset, _)) 
+            | Some(AsmInstruction::Bne(_, _, offset, _)) => {
+                *offset = offsets[*offset as usize] as i64;
             }
-            Some(AsmInstruction::Beq(rd1, rd2, offset, name)) => {
-                let rd1 = *rd1;
-                let rd2 = *rd2;
-                let offset = *offset;
-                let name = name.clone();
-                block.pop();
-                block.push(AsmInstruction::Beq(
-                    rd1,
-                    rd2,
-                    offsets[offset as usize] as i64,
-                    name,
-                ));
-                block
-            }
-            Some(AsmInstruction::Bne(rd1, rd2, offset, name)) => {
-                let rd1 = *rd1;
-                let rd2 = *rd2;
-                let offset = *offset;
-                let name = name.clone();
-                block.pop();
-                block.push(AsmInstruction::Bne(
-                    rd1,
-                    rd2,
-                    offsets[offset as usize] as i64,
-                    name,
-                ));
-                block
-            }
-            _ => block,
-        }
+            _ => (),
+        };
+        block
     }
 
     pub fn build(self) -> AsmFunction {

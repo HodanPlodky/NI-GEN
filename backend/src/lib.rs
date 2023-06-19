@@ -2,6 +2,7 @@ pub mod emit;
 mod fn_builder;
 mod inst_selection;
 mod insts;
+mod register_alloc;
 
 use fn_builder::AsmFunctionBuilder;
 use inst_selection::basic_instruction_selection;
@@ -15,7 +16,7 @@ type Data = Vec<u8>;
 
 pub type AsmBasicBlock = Vec<AsmInstruction>;
 
-struct AsmFunction {
+pub struct AsmFunction {
     name: String,
     blocks: Vec<AsmBasicBlock>,
 }
