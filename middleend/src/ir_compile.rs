@@ -124,7 +124,8 @@ impl IrCompiler {
                     Operator::Dec => f_b.add(I::Ldi(ImmI(-1)), RegType::Int),
                     _ => unreachable!(),
                 };
-                Ok(f_b.add(I::Add(RegReg(reg, addition)), RegType::Int))
+                //Ok(f_b.add(I::Add(RegReg(reg, addition)), RegType::Int));
+                todo!()
             }
             ExprType::UnaryPostOp(_, _) => todo!(),
             ExprType::Value(v) => self.compile_val(v, f_b),

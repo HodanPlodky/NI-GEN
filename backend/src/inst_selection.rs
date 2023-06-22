@@ -36,6 +36,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 }
                 None => todo!(),
             }
+            builder.release_temp();
         }
         middleend::inst::InstructionType::Alloca(ImmI(size)) => {
             let offset = builder.allocate_stack(*size);
