@@ -272,7 +272,29 @@ impl IrCompiler {
                 }
                 f_b.set_bb(after);
             }
-            StatementType::For(_, _, _, _) => todo!(),
+            StatementType::For(init, guard, after, body) => {
+                let check_bb = f_b.create_bb();
+                let body_bb = f_b.create_bb();
+                let after_bb = f_b.create_bb();
+                if let Some(init) = init {
+                    self.compile_stmt(init, f_b)?;
+                }
+
+                f_b.set_bb(check_bb);
+                let guard_reg = if let Some(guard) = guard {
+                    self.compile_expr(guard, f_b)
+                } else {
+                    Ok(f_b.add(I::Ldi(ImmI(1)), RegType::Int))
+                }?;
+                f_b.add(
+                    I::Branch(TerminatorBranch(guard_reg, body_bb, after_bb)),
+                    RegType::Void,
+                );
+
+                f_b.set_bb(body_bb);
+                self.compile_stmt(body, f_b)?;
+                
+            }
             StatementType::While(guard, body) => {
                 let check_bb = f_b.create_bb();
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);

@@ -187,7 +187,7 @@ pub enum StatementType {
     For(
         Option<Box<Statement>>,
         Option<Expr>,
-        Option<Expr>,
+        Option<Box<Statement>>,
         Box<Statement>,
     ),
     While(Expr, Box<Statement>),

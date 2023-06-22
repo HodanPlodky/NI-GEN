@@ -251,7 +251,7 @@ impl Parser {
         self.compare(TokenType::Semicol)?;
 
         let end = if self.top().tok != TokenType::RightBrac {
-            Some(self.expr()?)
+            Some(Box::new(self.expr_or_vars()?))
         } else {
             None
         };
@@ -520,7 +520,7 @@ impl Parser {
                 ))
             }
             Operator::BitAnd => {
-            self.pop();
+                self.pop();
                 Ok(Expr::new(
                     ExprType::Address(Box::new(self.e_unary_pre()?)),
                     data,
