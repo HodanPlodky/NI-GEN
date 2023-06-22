@@ -293,7 +293,12 @@ impl IrCompiler {
 
                 f_b.set_bb(body_bb);
                 self.compile_stmt(body, f_b)?;
+                if let Some(after) = after {
+                    self.compile_stmt(after, f_b)?;
+                }
+                f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
                 
+                f_b.set_bb(after_bb);
             }
             StatementType::While(guard, body) => {
                 let check_bb = f_b.create_bb();

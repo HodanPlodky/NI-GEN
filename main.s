@@ -29,7 +29,7 @@ main:
     ld x31, 48(x2)
     addi x10, x31, 0
     sd x1, 56(x2)
-    call fib
+    call betterfib
     ld x1, 56(x2)
     addi x31, x10, 0
     sd x31, 64(x2)
@@ -125,3 +125,57 @@ fib:
     addi x2, x2, 136
     ret
     jal x0, fib+96
+betterfib:
+    addi x2, x2, -136
+    addi x28, x10, 0
+    sd x28, 0(x2)
+    addi x7, x0, 0
+    sd x7, 8(x2)
+    addi x6, x0, 1
+    sd x6, 16(x2)
+    addi x5, x0, 0
+    sd x5, 24(x2)
+    ld x31, 24(x2)
+    sd x31, 32(x2)
+    ld x31, 0(x2)
+    sd x31, 40(x2)
+    ld x30, 32(x2)
+    ld x29, 40(x2)
+    slt x31, x30, x29
+    sd x31, 48(x2)
+    ld x31, 48(x2)
+    beq x31, x0, betterfib+192
+    ld x31, 16(x2)
+    sd x31, 64(x2)
+    ld x31, 64(x2)
+    sd x31, 56(x2)
+    ld x31, 8(x2)
+    sd x31, 72(x2)
+    ld x31, 16(x2)
+    sd x31, 80(x2)
+    ld x30, 72(x2)
+    ld x29, 80(x2)
+    add x31, x30, x29
+    sd x31, 88(x2)
+    ld x31, 88(x2)
+    sd x31, 16(x2)
+    ld x31, 56(x2)
+    sd x31, 96(x2)
+    ld x31, 96(x2)
+    sd x31, 8(x2)
+    ld x31, 24(x2)
+    sd x31, 104(x2)
+    addi x31, x0, 1
+    sd x31, 112(x2)
+    ld x30, 104(x2)
+    ld x29, 112(x2)
+    add x31, x30, x29
+    sd x31, 120(x2)
+    ld x31, 120(x2)
+    sd x31, 24(x2)
+    jal x0, betterfib+36
+    ld x31, 8(x2)
+    sd x31, 128(x2)
+    addi x10, x31, 0
+    addi x2, x2, 136
+    ret
