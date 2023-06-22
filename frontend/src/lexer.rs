@@ -3,7 +3,7 @@ use std::{
     str::{Chars, FromStr},
 };
 
-use crate::{errors::LexerError, ast::Operator};
+use crate::{ast::Operator, errors::LexerError};
 
 impl Into<TokenType> for Operator {
     fn into(self) -> TokenType {
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn lexer_test() {
-        let input = "int main() {\nint x = 1 + 33; -1; 'a' if else while char(( _a -52 ))} 52++"
+        let input = "int main() {\nint x = 1 + 33; x += 1 ;-1; 'a' if else while char(( _a -52 ))} 52++"
             .to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
@@ -339,6 +339,11 @@ mod tests {
             TokenType::Int(1),
             Operator::Add.into(),
             TokenType::Int(33),
+            TokenType::Semicol,
+            TokenType::Ident("x".to_string()),
+            Operator::Add.into(),
+            Operator::Assign.into(),
+            TokenType::Int(1),
             TokenType::Semicol,
             Operator::Sub.into(),
             TokenType::Int(1),
@@ -404,6 +409,39 @@ mod tests {
                 break;
             }
         }
+        println!(
+            "{:?}",
+            tokens
+                .into_iter()
+                .map(|x| x.tok)
+                .collect::<Vec<TokenType>>()
+        );
+    }
+
+    #[test]
+    fn test_add() {
+        let input = "+=".to_string();
+
+        let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
+        let mut tokens: Vec<Token> = vec![];
+        loop {
+            let token = lex.get_token().unwrap();
+            tokens.push(token);
+            if tokens.last().unwrap().tok == TokenType::Eof {
+                break;
+            }
+        }
+
+        let result: Vec<TokenType> = vec![Operator::Add.into(), Operator::Assign.into(), TokenType::Eof];
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|x| x.tok.clone())
+                .collect::<Vec<TokenType>>(),
+            result
+        );
+
         println!(
             "{:?}",
             tokens

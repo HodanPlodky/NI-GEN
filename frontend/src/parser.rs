@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::{
     ast::{
-        AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, Program, Statement,
-        StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType, Operator,
+        AstData, Expr, ExprType, FnDecl, FnDeclType, FnDef, FnDefType, Operator, Program,
+        Statement, StatementType, StructDef, StructDefType, TopLevel, Val, VarDecl, VarDeclType,
     },
     errors::{FrontendError, ParserError},
     lexer::{Keyword, Lexer, Loc, Token, TokenType},
@@ -490,8 +490,8 @@ impl Parser {
     fn e_unary_pre(&mut self) -> Result<Expr, FrontendError> {
         let t = self.top().tok;
         if let TokenType::Operator(o) = t {
-            self.pop();
-            self.e_unary_pre_inner(o)
+            let result = self.e_unary_pre_inner(o)?;
+            Ok(result)
         } else {
             self.e_post()
         }
@@ -505,18 +505,27 @@ impl Parser {
             | Operator::Inc
             | Operator::Dec
             | Operator::Not
-            | Operator::BitNot => Ok(Expr::new(
-                ExprType::UnaryPreOp(operator, Box::new(self.e_unary_pre()?)),
-                data,
-            )),
-            Operator::Mul => Ok(Expr::new(
-                ExprType::Deref(Box::new(self.e_unary_pre()?)),
-                data,
-            )),
-            Operator::BitAnd => Ok(Expr::new(
-                ExprType::Address(Box::new(self.e_unary_pre()?)),
-                data,
-            )),
+            | Operator::BitNot => {
+                self.pop();
+                Ok(Expr::new(
+                    ExprType::UnaryPreOp(operator, Box::new(self.e_unary_pre()?)),
+                    data,
+                ))
+            }
+            Operator::Mul => {
+                self.pop();
+                Ok(Expr::new(
+                    ExprType::Deref(Box::new(self.e_unary_pre()?)),
+                    data,
+                ))
+            }
+            Operator::BitAnd => {
+            self.pop();
+                Ok(Expr::new(
+                    ExprType::Address(Box::new(self.e_unary_pre()?)),
+                    data,
+                ))
+            }
             _ => self.e_post(),
         }
     }
@@ -631,7 +640,7 @@ mod tests {
         let lex = Lexer::new("tmp".to_string(), input.chars().peekable());
         let mut parser = Parser::new(lex).unwrap();
         let res = parser.parse();
-        //println!("{:?}", res);
+        println!("{:?}", res);
         assert!(res.is_err());
     }
 
@@ -706,5 +715,11 @@ mod tests {
     fn test_array_parser() {
         program_ok("int main() {int * a; return a[0]; }");
         program_ok("int main() {int a[5]; return a[0]; }");
+    }
+
+    #[test]
+    fn test_addassign_error() {
+        program_err("void main() {int a; a += 1;}");
+        program_err("void main() {int a; a -= 1;}");
     }
 }

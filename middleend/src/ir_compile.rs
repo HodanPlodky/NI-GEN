@@ -117,7 +117,15 @@ impl IrCompiler {
                 }
             }
 
-            ExprType::UnaryPreOp(_, _) => todo!(),
+            ExprType::UnaryPreOp(op, expr) => {
+                let reg = self.compile_expr(expr, f_b)?;
+                let addition = match op {
+                    Operator::Inc => f_b.add(I::Ldi(ImmI(1)), RegType::Int),
+                    Operator::Dec => f_b.add(I::Ldi(ImmI(-1)), RegType::Int),
+                    _ => unreachable!(),
+                };
+                Ok(f_b.add(I::Add(RegReg(reg, addition)), RegType::Int))
+            }
             ExprType::UnaryPostOp(_, _) => todo!(),
             ExprType::Value(v) => self.compile_val(v, f_b),
             ExprType::Ident(name) => {
@@ -264,7 +272,22 @@ impl IrCompiler {
                 f_b.set_bb(after);
             }
             StatementType::For(_, _, _, _) => todo!(),
-            StatementType::While(_, _) => todo!(),
+            StatementType::While(guard, body) => {
+                let check_bb = f_b.create_bb();
+                f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
+                f_b.set_bb(check_bb);
+                let guard_reg = self.compile_expr(guard, f_b)?;
+                let body_bb = f_b.create_bb();
+                let after_bb = f_b.create_bb();
+                f_b.add(
+                    I::Branch(TerminatorBranch(guard_reg, body_bb, after_bb)),
+                    RegType::Void,
+                );
+                f_b.set_bb(body_bb);
+                self.compile_stmt(body, f_b)?;
+                f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
+                f_b.set_bb(after_bb);
+            }
             StatementType::Break => todo!(),
             StatementType::Continue => todo!(),
             StatementType::Return(Some(expr)) => {
@@ -286,11 +309,8 @@ impl IrCompiler {
             );
 
             for index in 0..func.header.params.len() {
-                let t : RegType = func.header.params[index].1.clone().into();
-                let reg = fn_b.add(
-                    I::Arg(ImmI(index as i64)),
-                    t
-                );
+                let t: RegType = func.header.params[index].1.clone().into();
+                let reg = fn_b.add(I::Arg(ImmI(index as i64)), t);
                 let addr = fn_b.add(I::Alloca(ImmI(8)), RegType::Int);
                 fn_b.add(I::St(RegReg(addr, reg)), RegType::Void);
                 self.env

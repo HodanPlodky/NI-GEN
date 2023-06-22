@@ -14,6 +14,12 @@ fn main() {
     let content: String = fs::read_to_string(path.clone()).unwrap();
 
     let prog = parse(content, path).unwrap();
+    
+    if args[1] == "--parse" {
+        println!("{:?}", prog);
+        return
+    }
+
     let ir_prog = ir_compile(prog).unwrap();
     if args[1] == "--ir" {
         println!("{}", ir_prog);
