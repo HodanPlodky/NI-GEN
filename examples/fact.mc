@@ -6,5 +6,5 @@ int fact(int n) {
 }
 
 int main() {
-    return fact(10);
+    return fact(5);
 }
