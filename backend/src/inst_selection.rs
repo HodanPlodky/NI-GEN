@@ -23,7 +23,10 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 Some(offset) => {
                     builder.add_instruction(AsmInstruction::Ld(out, 2, offset));
                 }
-                None => todo!(),
+                None => {
+                    let addr = builder.load_reg(*rs1);
+                    builder.add_instruction(AsmInstruction::Ld(out, addr, 0))
+                },
             }
             builder.store_reg(reg, out);
             builder.release_temp();
@@ -34,7 +37,10 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 Some(offset) => {
                     builder.add_instruction(AsmInstruction::Sd(input, 2, offset));
                 }
-                None => todo!(),
+                None => {
+                    let addr = builder.load_reg(*rs1);
+                    builder.add_instruction(AsmInstruction::Sd(input, addr, 0))
+                },
             }
             builder.release_temp();
         }

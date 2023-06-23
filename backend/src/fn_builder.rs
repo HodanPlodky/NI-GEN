@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     insts::{AsmInstruction, Offset},
-    AsmBasicBlock, AsmFunction, register_alloc::ValueCell,
+    register_alloc::ValueCell,
+    AsmBasicBlock, AsmFunction,
 };
 
 pub type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
@@ -61,7 +62,7 @@ impl AsmFunctionBuilder {
         match block.last_mut() {
             Some(AsmInstruction::Jal(_, offset, _))
             | Some(AsmInstruction::Jalr(_, _, offset))
-            | Some(AsmInstruction::Beq(_, _, offset, _)) 
+            | Some(AsmInstruction::Beq(_, _, offset, _))
             | Some(AsmInstruction::Bne(_, _, offset, _)) => {
                 *offset = offsets[*offset as usize] as i64;
             }
@@ -133,6 +134,7 @@ impl AsmFunctionBuilder {
     }
 
     pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
+        //println!("{:?}", reg);
         match self.registers.get(&reg) {
             Some(ValueCell::Register(reg)) => *reg,
             Some(ValueCell::StackOffset(offset)) => {
@@ -140,7 +142,14 @@ impl AsmFunctionBuilder {
                 self.add_instruction(AsmInstruction::Ld(target, 2, *offset));
                 target
             }
-            None => unreachable!(),
+            None => match self.offsets.get(&reg) {
+                Some(offset) => {
+                    let target = self.freetemp.pop().unwrap().clone();
+                    self.add_instruction(AsmInstruction::Addi(target, 2, *offset));
+                    target
+                }
+                None => unreachable!(),
+            },
         }
     }
 

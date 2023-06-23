@@ -150,7 +150,10 @@ impl IrCompiler {
                 }
             }
             ExprType::Index(_, _) => todo!(),
-            ExprType::Deref(_) => todo!(),
+            ExprType::Deref(pointer) => {
+                let reg = self.compile_expr(pointer, f_b)?;
+                Ok(f_b.add(I::Ld(Reg(reg)), expr.get_type().into()))
+            }
             ExprType::Address(e) => match &e.value {
                 ExprType::Ident(name) => self.get_addreg(name.clone()),
                 _ => todo!(),
@@ -297,7 +300,7 @@ impl IrCompiler {
                     self.compile_stmt(after, f_b)?;
                 }
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
-                
+
                 f_b.set_bb(after_bb);
             }
             StatementType::While(guard, body) => {
