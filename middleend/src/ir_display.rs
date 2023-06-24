@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     inst::{
-        BasicBlock, ImmC, ImmI, ImmS, Instruction, InstructionType, Reg, RegReg, RegRegs, RegType,
+        BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegRegs, RegType,
         Register, TerminatorBranch, TerminatorJump, TerminatorReg, SymRegs,
     },
     ir::{Function, IrProgram},

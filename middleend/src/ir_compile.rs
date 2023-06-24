@@ -9,7 +9,7 @@ use frontend::{
 
 use crate::{
     inst::{
-        ImmC, ImmI, ImmS, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator,
+        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator,
         TerminatorBranch, TerminatorJump, TerminatorReg,
     },
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
@@ -118,8 +118,8 @@ impl IrCompiler {
             }
 
             ExprType::UnaryPreOp(op, expr) => {
-                let reg = self.compile_expr(expr, f_b)?;
-                let addition = match op {
+                let _reg = self.compile_expr(expr, f_b)?;
+                let _addition = match op {
                     Operator::Inc => f_b.add(I::Ldi(ImmI(1)), RegType::Int),
                     Operator::Dec => f_b.add(I::Ldi(ImmI(-1)), RegType::Int),
                     _ => unreachable!(),

@@ -1,23 +1,22 @@
 use std::fmt::Display;
 
-use crate::{AsmInstruction, AsmProgram, AsmBasicBlock, AsmFunction};
-
+use crate::{AsmBasicBlock, AsmFunction, AsmInstruction, AsmProgram};
 
 impl Display for AsmInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AsmInstruction::Lui(rd, imm) => {
                 write!(f, "lui {}, {}", rd, imm)
-            },
+            }
             AsmInstruction::Auipc(rd, imm) => write!(f, "auipc x{}, {}", rd, imm),
             AsmInstruction::Jal(rd, imm, name) => write!(f, "jal x{}, {}+{}", rd, name, imm),
             AsmInstruction::Jalr(x, y, z) => write!(f, "jalr x{}, x{}, x{}", x, y, z),
             AsmInstruction::Beq(x, y, z, name) => write!(f, "beq x{}, x{}, {}+{}", x, y, name, z),
             AsmInstruction::Bne(x, y, z, name) => write!(f, "bne x{}, x{}, {}+{}", x, y, name, z),
-            AsmInstruction::Blt(x, y, z, name) => write!(f, "blt x{}, x{}, x{}", x, y, z),
-            AsmInstruction::Bge(x, y, z, name) => write!(f, "bge x{}, x{}, x{}", x, y, z),
-            AsmInstruction::Bltu(x, y, z, name) => write!(f, "bltu x{}, x{}, x{}", x, y, z),
-            AsmInstruction::Bgeu(x, y, z, name) => write!(f, "bgeu x{}, x{}, x{}", x, y, z),
+            AsmInstruction::Blt(x, y, z, name) => write!(f, "blt x{}, x{}, {}+{}", x, y, name, z),
+            AsmInstruction::Bge(x, y, z, name) => write!(f, "bge x{}, x{}, {}+{}", x, y, name, z),
+            AsmInstruction::Bltu(x, y, z, name) => write!(f, "bltu x{}, x{}, {}+{}", x, y, name, z),
+            AsmInstruction::Bgeu(x, y, z, name) => write!(f, "bgeu x{}, x{}, {}+{}", x, y, name, z),
             AsmInstruction::Lb(x, y, z) => write!(f, "lb x{}, x{}, x{}", x, y, z),
             AsmInstruction::Lh(x, y, z) => write!(f, "lh x{}, x{}, x{}", x, y, z),
             AsmInstruction::Lw(x, y, z) => write!(f, "lw x{}, x{}, x{}", x, y, z),
@@ -54,7 +53,6 @@ impl Display for AsmInstruction {
     }
 }
 
-
 pub fn emit_assembly(program: AsmProgram) -> String {
     let mut lines = vec![".global _start".to_string(), "_start:".to_string()];
 
@@ -86,5 +84,8 @@ fn emit_function(function: AsmFunction) -> Vec<String> {
 }
 
 fn emit_basicblock(block: AsmBasicBlock) -> Vec<String> {
-    block.iter().map(|x| "    ".to_string() + x.to_string().as_str()).collect()
+    block
+        .iter()
+        .map(|x| "    ".to_string() + x.to_string().as_str())
+        .collect()
 }

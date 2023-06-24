@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     inst::{
-        BBIndex, BasicBlock, ImmC, ImmI, ImmS, Instruction, InstructionType, Reg, RegReg, RegType,
+        BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,
         Register, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
     },
     ir::{Function, IrProgram},

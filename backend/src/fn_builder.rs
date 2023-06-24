@@ -133,8 +133,8 @@ impl AsmFunctionBuilder {
         }
     }
 
+    // get register with values stored in ValueCell
     pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
-        //println!("{:?}", reg);
         match self.registers.get(&reg) {
             Some(ValueCell::Register(reg)) => *reg,
             Some(ValueCell::StackOffset(offset)) => {
@@ -153,12 +153,12 @@ impl AsmFunctionBuilder {
         }
     }
 
+    // get register, value is not guranteed
     pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
         match self.registers.get(&reg) {
             Some(ValueCell::Register(reg)) => *reg,
-            Some(ValueCell::StackOffset(offset)) => {
+            Some(ValueCell::StackOffset(_)) => {
                 let target = self.freetemp.pop().unwrap().clone();
-                //self.add_instruction(AsmInstruction::Ld(target, 2, *offset));
                 target
             }
             None => unreachable!(),

@@ -34,7 +34,6 @@ impl EnvLevel {
 pub struct TypeData {
     type_map: HashMap<String, TypeDef>,
     env: Vec<EnvLevel>,
-    errors: Vec<TypeError>,
 }
 
 impl Default for TypeData {
@@ -42,7 +41,6 @@ impl Default for TypeData {
         Self {
             type_map: HashMap::new(),
             env: vec![EnvLevel::new(None)],
-            errors: vec![],
         }
     }
 }
@@ -102,18 +100,6 @@ impl TypeData {
 
     fn pop_env(&mut self) {
         self.env.pop();
-    }
-
-    fn create_err(&mut self, err: TypeError) {
-        self.errors.push(err);
-    }
-
-    fn throw(&self) -> Result<(), FrontendError> {
-        if self.errors.len() > 0 {
-            Err(FrontendError::Type(self.errors.clone()))
-        } else {
-            Ok(())
-        }
     }
 }
 
