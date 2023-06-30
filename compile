@@ -1,0 +1,81 @@
+#!/bin/bash
+
+CC="riscv64-linux-gnu-gcc"
+CFLAGS="-ggdb -fomit-frame-pointer -march=rv64g"
+
+INFILE=$1
+OUTFILE=$2
+TYPE="comp"
+
+if [ "${1}" = "-r" ]; then
+    INFILE=$2
+    OUTFILE=$3
+    TYPE="run"
+fi
+
+if [ "${1}" = "-gdb" ]; then
+    INFILE=$2
+    OUTFILE=$3
+    TYPE="gdb"
+fi
+
+if [ "${1}" = "-d" ]; then
+    INFILE=$2
+    OUTFILE=$3
+    TYPE="dump"
+fi
+
+if [ "${OUTFILE}" = "" ]; then
+    OUTFILE="a.out"
+fi
+OUTFILE="build/${OUTFILE}"
+
+if [ ! -d "build" ]; then
+    mkdir build;
+fi
+
+FILENAME=$(basename -- "$INFILE");
+FILENAME="${FILENAME%.*}"
+ASMFILE="build/${FILENAME}.s"
+OBJFILE="build/${FILENAME}.o"
+
+cargo build --release 2> /dev/null
+target/release/console_comp --asm  ${INFILE} 2> build/error > ${ASMFILE} 
+
+if [ ! "$?" -eq 0 ]; then
+    cat build/error
+    exit -1
+fi
+
+${CC} ${CFLAGS} -c ${ASMFILE} -o ${OBJFILE} 
+${CC} ${CFLAGS} -o ${OUTFILE} ${OBJFILE} -nostdlib -static
+
+function run() {
+    qemu-riscv64 -L /usr/riscv64-linux-gnu/ $1
+    RETURN=$?
+    exit $RETURN
+}
+
+function gdb() {
+	qemu-riscv64 -L /usr/riscv64-linux-gnu/ -g 1234 $1 &
+	riscv64-linux-gnu-gdb -ex 'target remote localhost:1234' -ex "file $1"
+}
+
+function dump() {
+    printf "input file : %s\n" $2
+    qemu-riscv64 -L /usr/riscv64-linux-gnu/ $1
+    RETURN=$?
+    printf "return %s\n" $RETURN
+}
+
+if [ "${TYPE}" = "run" ]; then
+    run "$OUTFILE"
+fi
+
+if [ "${TYPE}" = "gdb" ]; then
+    gdb "$OUTFILE"
+fi
+
+if [ "${TYPE}" = "dump" ]; then
+    dump "$OUTFILE" "$INFILE"
+fi
