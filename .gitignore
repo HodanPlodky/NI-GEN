@@ -1,6 +1,7 @@
 /target
 /Cargo.lock
 /build
+/examples/actual
 
 example.o
 example
