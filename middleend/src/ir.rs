@@ -19,6 +19,17 @@ impl Function {
     }
 }
 
+impl Default for Function {
+    fn default() -> Self {
+        Function {
+            name: "global".to_string(),
+            arg_count: 0,
+            ret_type: RegType::Void,
+            blocks: vec![],
+        }
+    }
+}
+
 impl Deref for Function {
     type Target = Vec<BasicBlock>;
 
@@ -35,14 +46,19 @@ impl DerefMut for Function {
 
 #[derive(Debug)]
 pub struct IrProgram {
-    pub glob: BasicBlock,
+    pub glob: Function,
     pub funcs: HashMap<String, Function>,
 }
 
 impl Default for IrProgram {
     fn default() -> Self {
         Self {
-            glob: BasicBlock::new(vec![]),
+            glob: Function {
+                name: "global".to_string(),
+                arg_count: 0,
+                ret_type: RegType::Void,
+                blocks: vec![],
+            },
             funcs: HashMap::new(),
         }
     }
@@ -50,14 +66,19 @@ impl Default for IrProgram {
 
 #[derive(Debug)]
 pub struct IrBuilder {
-    global: BasicBlock,
+    global: Function,
     prog: IrProgram,
 }
 
 impl Default for IrBuilder {
     fn default() -> Self {
         Self {
-            global: BasicBlock::default(),
+            global: Function {
+                name: "global".to_string(),
+                arg_count: 0,
+                ret_type: RegType::Void,
+                blocks: vec![BasicBlock::default()],
+            },
             prog: IrProgram::default(),
         }
     }
@@ -93,7 +114,7 @@ impl IrBuilder {
     pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
         let id = self.get_id();
         let inst = Instruction::new(id, reg_type, None, inst);
-        self.global.push(inst);
+        self.global.blocks[0].push(inst);
         id
     }
 

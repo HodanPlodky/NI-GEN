@@ -2,36 +2,32 @@ use std::collections::HashMap;
 
 use crate::{
     insts::{AsmInstruction, Offset},
-    register_alloc::ValueCell,
+    register_alloc::{RegAllocator, ValueCell},
     AsmBasicBlock, AsmFunction,
 };
 
 pub type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
 
-pub struct AsmFunctionBuilder {
+pub struct AsmFunctionBuilder<'a> {
     pub name: String,
     stacksize: usize,
     pub actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
 
-    registers: HashMap<middleend::inst::Register, ValueCell>,
-    freeowned: Vec<usize>,
+    reg_allocator: &'a dyn RegAllocator,
     freetemp: Vec<usize>,
-    offsets: OffsetEnv,
 }
 
-impl AsmFunctionBuilder {
-    pub fn new(name: String) -> Self {
+impl<'a> AsmFunctionBuilder<'a> {
+    pub fn new(name: String, reg_allocator: &'a dyn RegAllocator) -> Self {
         Self {
             name,
-            stacksize: 0,
+            stacksize: reg_allocator.get_stacksize(),
             actual_bb: 0,
             blocks: vec![],
-            freeowned: vec![5, 6, 7, 28],
-            freetemp: vec![29, 30, 31],
 
-            registers: HashMap::new(),
-            offsets: HashMap::new(),
+            reg_allocator,
+            freetemp: vec![29, 30, 31],
         }
     }
 
@@ -120,58 +116,42 @@ impl AsmFunctionBuilder {
         self.blocks.len() - 1
     }
 
-    pub fn allocate_reg(&mut self, reg: middleend::inst::Register) -> ValueCell {
-        if self.freeowned.len() <= 0 {
-            let offset = ValueCell::StackOffset(self.stacksize as i64);
-            self.stacksize += 8;
-            self.registers.insert(reg, offset);
-            offset
-        } else {
-            let register = ValueCell::Register(self.freeowned.pop().unwrap());
-            self.registers.insert(reg, register);
-            register
-        }
-    }
-
     // get register with values stored in ValueCell
     pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
-        match self.registers.get(&reg) {
-            Some(ValueCell::Register(reg)) => *reg,
-            Some(ValueCell::StackOffset(offset)) => {
+        match self.reg_allocator.get_location(reg) {
+            ValueCell::Register(reg) => reg,
+            ValueCell::StackOffset(offset) => {
                 let target = self.freetemp.pop().unwrap().clone();
-                self.add_instruction(AsmInstruction::Ld(target, 2, *offset));
+                self.add_instruction(AsmInstruction::Ld(target, 2, offset));
                 target
             }
-            None => match self.offsets.get(&reg) {
-                Some(offset) => {
-                    let target = self.freetemp.pop().unwrap().clone();
-                    self.add_instruction(AsmInstruction::Addi(target, 2, *offset));
-                    target
-                }
-                None => unreachable!(),
-            },
+            ValueCell::Value(val) => {
+                let target = self.freetemp.pop().unwrap().clone();
+                self.add_instruction(AsmInstruction::Addi(target, 2, val));
+                target
+            }
         }
     }
 
     // get register, value is not guranteed
     pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
-        match self.registers.get(&reg) {
-            Some(ValueCell::Register(reg)) => *reg,
-            Some(ValueCell::StackOffset(_)) => {
+        match self.reg_allocator.get_location(reg) {
+            ValueCell::Register(reg) => reg,
+            ValueCell::StackOffset(_) => {
                 let target = self.freetemp.pop().unwrap().clone();
                 target
             }
-            None => unreachable!(),
+            _ => unreachable!(),
         }
     }
 
     pub fn store_reg(&mut self, reg: middleend::inst::Register, tmpreg: usize) {
-        match self.registers.get(&reg) {
-            Some(ValueCell::Register(_)) => (),
-            Some(ValueCell::StackOffset(offset)) => {
-                self.add_instruction(AsmInstruction::Sd(tmpreg, 2, *offset))
+        match self.reg_allocator.get_location(reg) {
+            ValueCell::Register(_) => (),
+            ValueCell::StackOffset(offset) => {
+                self.add_instruction(AsmInstruction::Sd(tmpreg, 2, offset))
             }
-            None => unreachable!(),
+            _ => unreachable!(),
         }
     }
 
@@ -186,14 +166,6 @@ impl AsmFunctionBuilder {
         let offset = self.stacksize;
         self.stacksize += size as usize;
         offset as i64
-    }
-
-    pub fn store_offset(&mut self, reg: middleend::inst::Register, offset: Offset) {
-        self.offsets.insert(reg, offset);
-    }
-
-    pub fn get_offset(&mut self, reg: middleend::inst::Register) -> Option<Offset> {
-        self.offsets.get(&reg).copied()
     }
 
     pub fn release_temp(&mut self) {

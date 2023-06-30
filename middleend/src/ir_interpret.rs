@@ -220,7 +220,7 @@ impl Interpret {
 
     fn run(&mut self) -> Result<i64, InterpretError> {
         let glob_block = self.program.glob.clone();
-        self.run_basicblock(&glob_block)?;
+        self.run_func(glob_block, vec![])?;
         let main = match self.program.funcs.get(&"main".to_string()) {
             Some(x) => Ok(x.clone()),
             None => Err(InterpretError::NoMain),

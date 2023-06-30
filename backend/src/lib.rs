@@ -11,6 +11,7 @@ use middleend::{
     inst::BasicBlock,
     ir::{Function, IrProgram},
 };
+use register_alloc::NaiveAllocator;
 
 type Data = Vec<u8>;
 
@@ -38,14 +39,7 @@ impl Default for AsmProgram {
 }
 
 pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
-    let mut startbuilder = AsmFunctionBuilder::new("global".to_string());
-    startbuilder.create_block();
-    ir_program
-        .glob
-        .iter()
-        .for_each(|x| basic_instruction_selection(x, &mut startbuilder));
-
-    let mut start = startbuilder.build();
+    let mut start = asm_func(ir_program.glob);
 
     let text: Vec<AsmFunction> = ir_program
         .funcs
@@ -61,7 +55,8 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
 }
 
 fn asm_func(function: Function) -> AsmFunction {
-    let mut builder = AsmFunctionBuilder::new(function.name);
+    let reg_alloc = NaiveAllocator::new(&function);
+    let mut builder = AsmFunctionBuilder::new(function.name, &reg_alloc);
 
     function
         .blocks
