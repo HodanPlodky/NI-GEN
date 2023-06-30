@@ -4,6 +4,12 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
+if [ "${1}" = "--no-color" ]; then
+    RED=''
+    GREEN=''
+    NC=''
+fi
+
 if [ ! -d examples/actual/ ]; then
     mkdir -p examples/actual
 fi
