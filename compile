@@ -40,6 +40,12 @@ ASMFILE="build/${FILENAME}.s"
 OBJFILE="build/${FILENAME}.o"
 
 cargo build --release 2> /dev/null
+
+if [ ! "$?" -eq 0 ]; then
+    echo Compile Error
+    exit -1
+fi
+
 target/release/console_comp --asm  ${INFILE} 2> build/error > ${ASMFILE} 
 
 if [ ! "$?" -eq 0 ]; then

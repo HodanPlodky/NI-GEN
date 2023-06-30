@@ -167,6 +167,16 @@ impl FunctionBuilder {
         self.act_bb = bi;
     }
 
+    pub fn get_act_bb(&self) -> BBIndex {
+        self.act_bb
+    }
+
+    pub fn set_predecesors(&mut self, to: BBIndex, preds: &[BBIndex]) {
+        for pred in preds {
+            self.blocks[to].add_predecesor(*pred)
+        }
+    }
+
     pub fn terminated(&self) -> bool {
         self.blocks[self.act_bb].terminated()
     }

@@ -9,8 +9,8 @@ use frontend::{
 
 use crate::{
     inst::{
-        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator,
-        TerminatorBranch, TerminatorJump, TerminatorReg,
+        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator, TerminatorBranch,
+        TerminatorJump, TerminatorReg,
     },
     ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
 };
@@ -243,6 +243,8 @@ impl IrCompiler {
                 let guard_reg = self.compile_expr(guard, f_b)?;
                 let then = f_b.create_bb();
                 let after = f_b.create_bb();
+                f_b.set_predecesors(then, &[f_b.get_act_bb()]);
+                f_b.set_predecesors(after, &[f_b.get_act_bb(), then]);
                 f_b.add(
                     I::Branch(TerminatorBranch(guard_reg, then, after)),
                     RegType::Void,
@@ -259,6 +261,9 @@ impl IrCompiler {
                 let then_bb = f_b.create_bb();
                 let else_bb = f_b.create_bb();
                 let after = f_b.create_bb();
+                f_b.set_predecesors(then_bb, &[f_b.get_act_bb()]);
+                f_b.set_predecesors(else_bb, &[f_b.get_act_bb()]);
+                f_b.set_predecesors(after, &[then_bb, else_bb]);
                 f_b.add(
                     I::Branch(TerminatorBranch(guard_reg, then_bb, else_bb)),
                     RegType::Void,
@@ -279,6 +284,10 @@ impl IrCompiler {
                 let check_bb = f_b.create_bb();
                 let body_bb = f_b.create_bb();
                 let after_bb = f_b.create_bb();
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb(), body_bb]);
+                f_b.set_predecesors(body_bb, &[check_bb]);
+                f_b.set_predecesors(after_bb, &[check_bb]);
+
                 if let Some(init) = init {
                     self.compile_stmt(init, f_b)?;
                 }
@@ -305,11 +314,16 @@ impl IrCompiler {
             }
             StatementType::While(guard, body) => {
                 let check_bb = f_b.create_bb();
+                let body_bb = f_b.create_bb();
+                let after_bb = f_b.create_bb();
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb(), body_bb]);
+                f_b.set_predecesors(body_bb, &[check_bb]);
+                f_b.set_predecesors(after_bb, &[check_bb]);
+
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
                 f_b.set_bb(check_bb);
                 let guard_reg = self.compile_expr(guard, f_b)?;
-                let body_bb = f_b.create_bb();
-                let after_bb = f_b.create_bb();
+
                 f_b.add(
                     I::Branch(TerminatorBranch(guard_reg, body_bb, after_bb)),
                     RegType::Void,

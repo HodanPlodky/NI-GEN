@@ -81,12 +81,14 @@ pub type Symbol = String;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BasicBlock {
+    predecesors: Vec<BBIndex>,
     pub instruction: Vec<Instruction>,
 }
 
 impl Default for BasicBlock {
     fn default() -> Self {
         Self {
+            predecesors: vec![],
             instruction: vec![],
         }
     }
@@ -107,8 +109,27 @@ impl DerefMut for BasicBlock {
 }
 
 impl BasicBlock {
-    pub fn new(instruction: Vec<Instruction>) -> Self {
-        Self { instruction }
+    pub fn add_predecesor(&mut self, predecesor: BBIndex) {
+        self.predecesors.push(predecesor)
+    }
+
+    pub fn pred(&self) -> Vec<BBIndex> {
+        self.predecesors.clone()
+    }
+
+    pub fn succ(&self) -> Vec<BBIndex> {
+        use InstructionType::*;
+        let inst = match self.last() {
+            Some(inst) => inst,
+            None => return vec![],
+        };
+        match &inst.data {
+            Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
+            Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
+                vec![*bbindex_true, *bbindex_false]
+            }
+            _ => [].to_vec(),
+        }
     }
 
     pub fn terminated(&self) -> bool {
