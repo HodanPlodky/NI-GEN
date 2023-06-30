@@ -39,6 +39,10 @@ where
     }
 }
 
+
+/// Represantation of the program lattice will be
+/// just vector of vectors of lattice elements 
+/// for each instruction of the basic block
 trait DataFlowAnalysis<A, L : Lattice<A>> {
     fn transfer_fun(&mut self) -> A;
     fn join(&mut self) -> A;
