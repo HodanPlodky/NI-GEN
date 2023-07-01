@@ -67,6 +67,46 @@ impl InstructionType {
             _ => false,
         }
     }
+
+    pub fn get_regs(&self) -> Vec<Register> {
+        match self {
+            InstructionType::Ld(Reg(a)) => vec![*a],
+            InstructionType::St(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Cpy(RegRegImm(a, b, _)) => vec![*a, *b],
+            InstructionType::Gep(RegRegImm(a, b, _)) => vec![*a, *b],
+            InstructionType::Add(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Sub(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Mul(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Div(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Mod(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Shr(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Shl(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::And(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Or(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Xor(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Neg(Reg(a)) => vec![*a],
+            InstructionType::Lt(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Le(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Gt(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Ge(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Eql(RegReg(a, b)) => vec![*a, *b],
+            InstructionType::Call(RegRegs(reg, regs)) => {
+                let mut regs = regs.clone();
+                regs.push(*reg);
+                regs
+            }
+            InstructionType::CallDirect(SymRegs(_, regs)) => regs.clone(),
+            InstructionType::Retr(TerminatorReg(reg)) => vec![*reg],
+            InstructionType::Branch(TerminatorBranch(reg, _, _)) => vec![*reg],
+            InstructionType::Print(Reg(a)) => vec![*a],
+            InstructionType::Phi(RegRegs(reg, regs)) => {
+                let mut regs = regs.clone();
+                regs.push(*reg);
+                regs
+            }
+            _ => vec![],
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
