@@ -14,13 +14,14 @@ use middleend::{
 
 fn printlive(result: HashMap<String, Vec<Vec<HashSet<Register>>>>) {
     for (name, data) in result.iter() {
-        println!("{} {{", name);
+        println!("function {} {{", name);
         for bb_index in 0..data.len() {
             println!("BB{}:", bb_index);
             for inst_state in data[bb_index].iter() {
                 println!("\t{:?}", inst_state);
             }
         }
+        println!("}}\n");
     }
 }
 
