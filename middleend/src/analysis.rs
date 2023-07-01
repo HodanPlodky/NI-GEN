@@ -1,17 +1,17 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     inst::{BasicBlock, InstUUID, InstructionType, Register},
-    ir::Function,
+    ir::{Function, IrProgram},
 };
 
-trait Lattice<A> {
+pub trait Lattice<A> {
     fn top(&self) -> A;
     fn bot(&self) -> A;
     fn lub(&self, a: &A, b: &A) -> A;
 }
 
-struct PowerSetLattice<E>
+pub struct PowerSetLattice<E>
 where
     E: std::hash::Hash + PartialEq + Eq + Clone + Copy,
 {
@@ -46,7 +46,7 @@ where
 
 /// Lattice that represents the state
 /// of a function in the program
-struct FunctionLattice<'a, A>
+pub struct FunctionLattice<'a, A>
 where
     A: Clone,
 {
@@ -74,7 +74,7 @@ where
         self.function
             .blocks
             .iter()
-            .map(|x| x.iter().map(|_| self.inner_lattice.bot()).collect())
+            .map(|x| x.iter().map(|_| self.inner_lattice.top()).collect())
             .collect()
     }
 
@@ -82,7 +82,7 @@ where
         self.function
             .blocks
             .iter()
-            .map(|x| x.iter().map(|_| self.inner_lattice.top()).collect())
+            .map(|x| x.iter().map(|_| self.inner_lattice.bot()).collect())
             .collect()
     }
 
@@ -99,7 +99,7 @@ where
     }
 }
 
-enum DataflowType {
+pub enum DataflowType {
     Forwards,
     Backwards,
 }
@@ -107,7 +107,7 @@ enum DataflowType {
 /// Represantation of the program lattice will be
 /// just vector of vectors of lattice elements
 /// for each instruction of the basic block
-trait DataFlowAnalysis<'a, A, L>
+pub trait DataFlowAnalysis<'a, A, L>
 where
     A: PartialEq + Clone + 'a,
     L: Lattice<A>,
@@ -116,31 +116,33 @@ where
     fn inner_lattice(&self) -> &dyn Lattice<A>;
     /// helper function for getting function
     fn function(&self) -> &Function;
+    ///
+    fn set_function(&mut self, function: &'a Function);
     /// helper function for type of analysis
     fn direction(&self) -> DataflowType;
 
     /// implementation of constrains
-    fn transfer_fun(&self, inst: InstUUID, state: Vec<Vec<A>>) -> A;
+    fn transfer_fun(&self, inst: InstUUID, state: A) -> A;
 
     fn before(&self, inst: InstUUID) -> Vec<InstUUID> {
         let (g, bb_index, insts_index) = inst;
         let func = self.function();
         match self.direction() {
-            DataflowType::Forwards if func.blocks[bb_index].len() - 1 == insts_index => func.blocks
-                [bb_index]
-                .pred()
+            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == insts_index => func
+                .blocks[bb_index]
+                .succ()
                 .into_iter()
                 .map(|x| (false, x, 0))
                 .collect(),
-            DataflowType::Forwards => {
+            DataflowType::Backwards => {
                 vec![(g, bb_index, insts_index + 1)]
             }
-            DataflowType::Backwards if insts_index == 0 => func.blocks[bb_index]
-                .succ()
+            DataflowType::Forwards if insts_index == 0 => func.blocks[bb_index]
+                .pred()
                 .into_iter()
                 .map(|x| (false, x, func.blocks[x].len()))
                 .collect(),
-            DataflowType::Backwards => vec![(g, bb_index, insts_index - 1)],
+            DataflowType::Forwards => vec![(g, bb_index, insts_index - 1)],
         }
     }
 
@@ -155,7 +157,10 @@ where
     }
 
     fn fun_block(&self, state: &Vec<Vec<A>>, block: &BasicBlock) -> Vec<A> {
-        block.iter().map(|inst| self.join(inst.id, state)).collect()
+        block
+            .iter()
+            .map(|inst| self.transfer_fun(inst.id, self.join(inst.id, state)))
+            .collect()
     }
 
     /// function which aplies the tranfer function on
@@ -169,7 +174,7 @@ where
     }
 
     /// basic algorighm for finding fixed point
-    fn analyze(&'a mut self) -> Vec<Vec<A>> {
+    fn analyze(&mut self) -> Vec<Vec<A>> {
         let fun_lattice = FunctionLattice::<A>::new(self.function(), self.inner_lattice());
         let mut x = fun_lattice.bot();
         loop {
@@ -184,7 +189,7 @@ where
     }
 }
 
-struct LiveRegisterAnalysis<'a> {
+pub struct LiveRegisterAnalysis<'a> {
     function: &'a Function,
     inner_lattice: PowerSetLattice<Register>,
 }
@@ -222,19 +227,46 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         DataflowType::Backwards
     }
 
-    fn transfer_fun(
-        &self,
-        inst: InstUUID,
-        state: Vec<Vec<HashSet<Register>>>,
-    ) -> HashSet<Register> {
+    fn transfer_fun(&self, inst: InstUUID, state: HashSet<Register>) -> HashSet<Register> {
         use InstructionType::*;
 
         let blocks = self.function();
         let (_, bb_index, inst_index) = inst;
         let inst = blocks[bb_index][inst_index].clone();
         match inst.data {
-            Ret(_) | Retr(_) => self.inner_lattice.bot(),
-            _ => state[bb_index][inst_index].clone(),
+            Ret(_) => self.inner_lattice.bot(),
+            Retr(_) => HashSet::from_iter(inst.data.get_regs().into_iter()),
+            _ => {
+                let mut state = state;
+                state.remove(&inst.id);
+                for reg in inst.data.get_regs() {
+                    state.insert(reg);
+                }
+                state
+            }
         }
     }
+
+    fn set_function(&mut self, function: &'a Function) {
+        self.function = function;
+    }
+}
+
+pub fn analyze_program<'a, A, L>(
+    program: &'a IrProgram,
+    dataflowanalysis: impl DataFlowAnalysis<'a, A, L>,
+) -> HashMap<String, Vec<Vec<A>>>
+where
+    A: PartialEq + Clone + 'a,
+    L: Lattice<A>,
+{
+    let mut dataflowanalysis = dataflowanalysis;
+    program
+        .funcs
+        .iter()
+        .map(|(name, func)| {
+            dataflowanalysis.set_function(func);
+            (name.clone(), dataflowanalysis.analyze())
+        })
+        .collect()
 }

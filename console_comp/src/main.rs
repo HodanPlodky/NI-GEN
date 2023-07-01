@@ -1,8 +1,28 @@
-use std::{env, fs};
+use std::{
+    collections::{HashMap, HashSet},
+    env, fs,
+};
 
 use backend::{asm_compile, emit::emit_assembly};
 use frontend::parse;
-use middleend::{ir_compile::ir_compile, ir_interpret::run};
+use middleend::{
+    analysis::{analyze_program, LiveRegisterAnalysis},
+    inst::Register,
+    ir_compile::ir_compile,
+    ir_interpret::run,
+};
+
+fn printlive(result: HashMap<String, Vec<Vec<HashSet<Register>>>>) {
+    for (name, data) in result.iter() {
+        println!("{} {{", name);
+        for bb_index in 0..data.len() {
+            println!("BB{}:", bb_index);
+            for inst_state in data[bb_index].iter() {
+                println!("\t{:?}", inst_state);
+            }
+        }
+    }
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -14,10 +34,10 @@ fn main() {
     let content: String = fs::read_to_string(path.clone()).unwrap();
 
     let prog = parse(content, path).unwrap();
-    
+
     if args[1] == "--parse" {
         println!("{:?}", prog);
-        return
+        return;
     }
 
     let ir_prog = ir_compile(prog).unwrap();
@@ -29,5 +49,10 @@ fn main() {
         let asm_prog = asm_compile(ir_prog);
         let asm_text = emit_assembly(asm_prog);
         println!("{}", asm_text);
+    } else if args[1] == "--live" {
+        println!("{}", ir_prog);
+        let live = LiveRegisterAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap());
+        let result = analyze_program(&ir_prog, live);
+        printlive(result);
     }
 }
