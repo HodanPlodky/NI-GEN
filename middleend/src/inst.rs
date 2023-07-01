@@ -169,6 +169,9 @@ pub struct TerminatorBranch(pub Register, pub BBIndex, pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TerminatorReg(pub Register);
 
+/// Id of the instruction
+/// the bool flag signifies if the instruction
+/// is part of the global space
 pub type InstUUID = (bool, usize, usize);
 
 #[derive(Clone, PartialEq, Eq, Debug)]
