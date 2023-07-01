@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    inst::{BasicBlock, InstUUID, Register},
+    inst::{BasicBlock, InstUUID, InstructionType, Register},
     ir::Function,
 };
 
@@ -71,15 +71,31 @@ where
     A: Clone,
 {
     fn top(&self) -> Vec<Vec<A>> {
-        todo!()
+        self.function
+            .blocks
+            .iter()
+            .map(|x| x.iter().map(|_| self.inner_lattice.bot()).collect())
+            .collect()
     }
 
     fn bot(&self) -> Vec<Vec<A>> {
-        todo!()
+        self.function
+            .blocks
+            .iter()
+            .map(|x| x.iter().map(|_| self.inner_lattice.top()).collect())
+            .collect()
     }
 
     fn lub(&self, a: &Vec<Vec<A>>, b: &Vec<Vec<A>>) -> Vec<Vec<A>> {
-        todo!()
+        a.iter()
+            .zip(b.iter())
+            .map(|(a, b)| {
+                a.iter()
+                    .zip(b.iter())
+                    .map(|(a, b)| self.inner_lattice.lub(a, b))
+                    .collect()
+            })
+            .collect()
     }
 }
 
@@ -97,14 +113,14 @@ where
     L: Lattice<A>,
 {
     /// helper function for getting inner lattice
-    fn inner_lattice(&self) -> &'a dyn Lattice<A>;
+    fn inner_lattice(&self) -> &dyn Lattice<A>;
     /// helper function for getting function
     fn function(&self) -> &Function;
     /// helper function for type of analysis
     fn direction(&self) -> DataflowType;
 
     /// implementation of constrains
-    fn transfer_fun(&mut self) -> A;
+    fn transfer_fun(&self, inst: InstUUID, state: Vec<Vec<A>>) -> A;
 
     fn before(&self, inst: InstUUID) -> Vec<InstUUID> {
         let (g, bb_index, insts_index) = inst;
@@ -144,7 +160,7 @@ where
 
     /// function which aplies the tranfer function on
     /// every instuction in all basic blocks
-    fn fun(&mut self, state: Vec<Vec<A>>) -> Vec<Vec<A>> {
+    fn fun(&self, state: Vec<Vec<A>>) -> Vec<Vec<A>> {
         let func = self.function();
         func.blocks
             .iter()
@@ -153,7 +169,7 @@ where
     }
 
     /// basic algorighm for finding fixed point
-    fn analyze(&mut self) -> Vec<Vec<A>> {
+    fn analyze(&'a mut self) -> Vec<Vec<A>> {
         let fun_lattice = FunctionLattice::<A>::new(self.function(), self.inner_lattice());
         let mut x = fun_lattice.bot();
         loop {
@@ -168,26 +184,57 @@ where
     }
 }
 
-struct LiveRegisterAnalysis {
-    inner_lattice : PowerSetLattice<Register>,
+struct LiveRegisterAnalysis<'a> {
+    function: &'a Function,
+    inner_lattice: PowerSetLattice<Register>,
+}
+
+impl<'a> LiveRegisterAnalysis<'a> {
+    pub fn new(function: &'a Function) -> Self {
+        let registers: HashSet<Register> = HashSet::from_iter(
+            function
+                .blocks
+                .iter()
+                .map(|x| x.iter().map(|y| y.id))
+                .flatten(),
+        );
+        let inner_lattice = PowerSetLattice::new(registers);
+
+        Self {
+            function,
+            inner_lattice,
+        }
+    }
 }
 
 impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
-    for LiveRegisterAnalysis
+    for LiveRegisterAnalysis<'a>
 {
-    fn inner_lattice(&self) -> &'a dyn Lattice<HashSet<Register>> {
-        todo!()
+    fn inner_lattice(&self) -> &dyn Lattice<HashSet<Register>> {
+        &self.inner_lattice
     }
 
     fn function(&self) -> &Function {
-        todo!()
+        self.function
     }
 
     fn direction(&self) -> DataflowType {
-        todo!()
+        DataflowType::Backwards
     }
 
-    fn transfer_fun(&mut self) -> HashSet<Register> {
-        todo!()
+    fn transfer_fun(
+        &self,
+        inst: InstUUID,
+        state: Vec<Vec<HashSet<Register>>>,
+    ) -> HashSet<Register> {
+        use InstructionType::*;
+
+        let blocks = self.function();
+        let (_, bb_index, inst_index) = inst;
+        let inst = blocks[bb_index][inst_index].clone();
+        match inst.data {
+            Ret(_) | Retr(_) => self.inner_lattice.bot(),
+            _ => state[bb_index][inst_index].clone(),
+        }
     }
 }
