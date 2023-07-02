@@ -234,7 +234,7 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         let (_, bb_index, inst_index) = inst;
         let inst = blocks[bb_index][inst_index].clone();
         match inst.data {
-            Ret(_) => self.inner_lattice.bot(),
+            Ret(_) | Exit(_) => self.inner_lattice.bot(),
             Retr(_) => HashSet::from_iter(inst.data.get_regs().into_iter()),
             _ => {
                 let mut state = state;

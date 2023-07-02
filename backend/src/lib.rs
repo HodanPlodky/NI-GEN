@@ -11,7 +11,7 @@ use middleend::{
     inst::BasicBlock,
     ir::{Function, IrProgram},
 };
-use register_alloc::NaiveAllocator;
+use register_alloc::{LinearAllocator, NaiveAllocator};
 
 type Data = Vec<u8>;
 
@@ -55,7 +55,7 @@ pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
 }
 
 fn asm_func(function: Function) -> AsmFunction {
-    let reg_alloc = NaiveAllocator::new(&function);
+    let reg_alloc = LinearAllocator::new(&function);
     let mut builder = AsmFunctionBuilder::new(function.name, &reg_alloc);
 
     function

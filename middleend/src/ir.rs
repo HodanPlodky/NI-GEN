@@ -100,7 +100,7 @@ pub type I = InstructionType;
 
 impl IrBuilder {
     fn get_id(&self) -> InstUUID {
-        (true, 0, self.global.len())
+        (true, 0, self.global.blocks[0].len())
     }
 
     pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {

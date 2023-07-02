@@ -1,4 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use middleend::{
+    analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
+    inst::BasicBlock,
+};
 
 #[derive(Clone, Copy)]
 pub enum ValueCell {
@@ -24,13 +29,13 @@ pub struct NaiveAllocator {
 }
 
 impl NaiveAllocator {
-    pub fn new(prog: &middleend::ir::Function) -> Self {
+    pub fn new(function: &middleend::ir::Function) -> Self {
         let mut res = Self {
             freeowned: vec![5, 6, 7, 28],
             registers: HashMap::new(),
             stacksize: 0,
         };
-        res.allocate(prog);
+        res.allocate(function);
         res
     }
 
@@ -80,19 +85,28 @@ impl RegAllocator for NaiveAllocator {
  * is for a duration of the lifetime of the ir register
  */
 pub struct LinearAllocator {
+    liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
     freeowned: Vec<usize>,
     registers: HashMap<middleend::inst::Register, ValueCell>,
+    release: Vec<Vec<Vec<middleend::inst::Register>>>,
     stacksize: i64,
 }
 
 impl LinearAllocator {
-    pub fn new(prog: &middleend::ir::Function) -> Self {
+    pub fn new(function: &middleend::ir::Function) -> Self {
+        let mut liveanalysis = LiveRegisterAnalysis::new(function);
         let mut res = Self {
+            liveness: liveanalysis.analyze(),
             freeowned: vec![5, 6, 7, 28],
             registers: HashMap::new(),
+            release: function
+                .blocks
+                .iter()
+                .map(|x| x.iter().map(|_| vec![]).collect())
+                .collect(),
             stacksize: 0,
         };
-        res.allocate(prog);
+        res.allocate(function);
         res
     }
 
@@ -105,14 +119,14 @@ impl LinearAllocator {
                             .insert(inst.id, ValueCell::Value(self.stacksize));
                         self.stacksize += size;
                     }
-                    _ => self.allocate_reg(inst.id),
+                    _ => self.allocate_reg(inst.id, &prog.blocks),
                 }
-
+                self.release(inst.id);
             }
         }
     }
 
-    fn allocate_reg(&mut self, reg: middleend::inst::Register) {
+    fn allocate_reg(&mut self, reg: middleend::inst::Register, blocks: &Vec<BasicBlock>) {
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -120,6 +134,31 @@ impl LinearAllocator {
         } else {
             let register = ValueCell::Register(self.freeowned.pop().unwrap());
             self.registers.insert(reg, register);
+            self.create_release(reg, blocks);
+        }
+    }
+
+    fn create_release(&mut self, reg: middleend::inst::Register, blocks: &Vec<BasicBlock>) {
+        let (_, bb_start, inst_start) = reg;
+        let mut place = reg.clone();
+        for bb_index in bb_start..blocks.len() {
+            for inst_index in inst_start..blocks[bb_index].len() {
+                if self.liveness[bb_index][inst_index].contains(&reg) {
+                    place = (false, bb_index, inst_index);
+                }
+            }
+        }
+        let (_, bb_index, inst_index) = place;
+        self.release[bb_index][inst_index].push(reg);
+    }
+
+    fn release(&mut self, reg: middleend::inst::Register) {
+        let (_, bb_index, inst_index) = reg;
+        for rel_reg in self.release[bb_index][inst_index].iter() {
+            match self.get_location(*rel_reg) {
+                ValueCell::Register(reg) => self.freeowned.push(reg),
+                _ => (),
+            }
         }
     }
 }
