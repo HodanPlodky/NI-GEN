@@ -95,7 +95,9 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 builder.release_temp();
             }
             let offset = builder.force_store(1);
+            let offsets = builder.store_used(inst.id);
             builder.add_instruction(AsmInstruction::Call(sym.clone()));
+            builder.load_used(inst.id, offsets);
             builder.add_instruction(AsmInstruction::Ld(1, 2, offset));
             let out = builder.get_reg(reg);
             builder.add_instruction(AsmInstruction::Addi(out, a[0], 0));

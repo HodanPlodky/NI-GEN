@@ -14,7 +14,7 @@ pub enum ValueCell {
 
 pub trait RegAllocator {
     fn get_location(&self, reg: middleend::inst::Register) -> ValueCell;
-    fn get_used(&self) -> &Vec<usize>;
+    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize>;
     fn get_stacksize(&self) -> usize;
 }
 
@@ -71,7 +71,7 @@ impl RegAllocator for NaiveAllocator {
         self.registers[&reg]
     }
 
-    fn get_used(&self) -> &Vec<usize> {
+    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize> {
         todo!()
     }
 
@@ -87,8 +87,10 @@ impl RegAllocator for NaiveAllocator {
 pub struct LinearAllocator {
     liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
     freeowned: Vec<usize>,
+    used_register: Vec<usize>,
     registers: HashMap<middleend::inst::Register, ValueCell>,
     release: Vec<Vec<Vec<middleend::inst::Register>>>,
+    used: Vec<Vec<Vec<usize>>>,
     stacksize: i64,
 }
 
@@ -98,8 +100,14 @@ impl LinearAllocator {
         let mut res = Self {
             liveness: liveanalysis.analyze(),
             freeowned: vec![5, 6, 7, 28],
+            used_register: vec![],
             registers: HashMap::new(),
             release: function
+                .blocks
+                .iter()
+                .map(|x| x.iter().map(|_| vec![]).collect())
+                .collect(),
+            used: function
                 .blocks
                 .iter()
                 .map(|x| x.iter().map(|_| vec![]).collect())
@@ -132,8 +140,12 @@ impl LinearAllocator {
             self.stacksize += 8;
             self.registers.insert(reg, offset);
         } else {
-            let register = ValueCell::Register(self.freeowned.pop().unwrap());
+            let reg_name = self.freeowned.pop().unwrap();
+            self.used_register.push(reg_name);
+            let register = ValueCell::Register(reg_name);
             self.registers.insert(reg, register);
+            let (_, bb_index, inst_index) = reg;
+            self.used[bb_index][inst_index] = self.used_register.clone();
             self.create_release(reg, blocks);
         }
     }
@@ -156,7 +168,15 @@ impl LinearAllocator {
         let (_, bb_index, inst_index) = reg;
         for rel_reg in self.release[bb_index][inst_index].iter() {
             match self.get_location(*rel_reg) {
-                ValueCell::Register(reg) => self.freeowned.push(reg),
+                ValueCell::Register(reg) => {
+                    for i in 0..self.used_register.len() {
+                        if self.used_register[i] == reg {
+                            self.used_register.remove(i);
+                            break;
+                        }
+                    }
+                    self.freeowned.push(reg)
+                }
                 _ => (),
             }
         }
@@ -168,8 +188,9 @@ impl RegAllocator for LinearAllocator {
         self.registers[&reg]
     }
 
-    fn get_used(&self) -> &Vec<usize> {
-        todo!()
+    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize> {
+        let (_, bb_index, inst_index) = inst;
+        &self.used[bb_index][inst_index]
     }
 
     fn get_stacksize(&self) -> usize {

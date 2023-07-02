@@ -175,4 +175,20 @@ impl<'a> AsmFunctionBuilder<'a> {
     pub fn add_instruction(&mut self, inst: AsmInstruction) {
         self.blocks.last_mut().unwrap().push(inst);
     }
+
+    pub fn store_used(&mut self, inst: middleend::inst::InstUUID) -> Vec<Offset> {
+        let used = self.reg_allocator.get_used(inst);
+        let mut result = vec![];
+        for reg in used {
+            result.push(self.force_store(*reg));
+        }
+        result
+    }
+
+    pub fn load_used(&mut self, inst: middleend::inst::InstUUID, offsets: Vec<Offset>) {
+        let used = self.reg_allocator.get_used(inst);
+        for (reg, offset) in used.iter().zip(offsets.iter()) {
+            self.add_instruction(AsmInstruction::Ld(*reg, 2, *offset));
+        }
+    }
 }
