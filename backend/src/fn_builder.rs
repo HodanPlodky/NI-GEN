@@ -71,15 +71,17 @@ impl<'a> AsmFunctionBuilder<'a> {
     pub fn build(self, peepholer: PeepHoler) -> AsmFunction {
         if self.stacksize == 0 {
             let mut blocks = self.blocks;
-            for block in &mut blocks {
-                peepholer.pass_basicblock(block, 2);
+            for _ in 0..10 {
+                for block in &mut blocks {
+                    peepholer.pass_basicblock(block, 2);
+                }
             }
             return AsmFunction {
                 name: self.name,
                 blocks,
             };
         }
-        
+
         // epilogues
         let mut blocks: Vec<AsmBasicBlock> = self
             .blocks
@@ -93,8 +95,10 @@ impl<'a> AsmFunctionBuilder<'a> {
             .expect("Totally empty function")
             .insert(0, AsmInstruction::Addi(2, 2, -(self.stacksize as i64)));
 
-        for block in &mut blocks {
-            peepholer.pass_basicblock(block, 2);
+        for _ in 0..10 {
+            for block in &mut blocks {
+                peepholer.pass_basicblock(block, 2);
+            }
         }
 
         let lens: Vec<usize> = blocks

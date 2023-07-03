@@ -14,6 +14,16 @@ impl Database for MockDatabase {
             {
                 Some(vec![AsmInstruction::Addi(out_reg, rs1, imm)])
             }
+            &[AsmInstruction::Addi(reg, 0, imm), AsmInstruction::Sub(out_reg, rs1, rs2)]
+                if reg == rs2 =>
+            {
+                Some(vec![AsmInstruction::Addi(out_reg, rs1, -imm)])
+            }
+            &[AsmInstruction::Addi(reg, rs, imm1), AsmInstruction::Addi(out_reg, rs1, imm2)]
+                if reg == rs1 && reg != rs =>
+            {
+                Some(vec![AsmInstruction::Addi(out_reg, rs, imm1 + imm2)])
+            }
             &[AsmInstruction::Addi(reg, 2, imm), AsmInstruction::Ld(out_reg, rs1, 0)]
                 if reg == rs1 && reg != 2 =>
             {
@@ -23,6 +33,14 @@ impl Database for MockDatabase {
                 if reg == rs1 && reg != 2 =>
             {
                 Some(vec![AsmInstruction::Sd(out_reg, 2, imm)])
+            }
+            &[AsmInstruction::Sd(rd_sd, rs_sd, offset_sd), AsmInstruction::Ld(rd_ld, rs_ld, offset_ld)]
+                if rs_sd == rs_ld && offset_sd == offset_ld =>
+            {
+                Some(vec![
+                    AsmInstruction::Sd(rd_sd, rs_sd, offset_sd),
+                    AsmInstruction::Addi(rd_ld, rd_sd, 0),
+                ])
             }
             _ => None,
         }
