@@ -14,6 +14,16 @@ impl Database for MockDatabase {
             {
                 Some(vec![AsmInstruction::Addi(out_reg, rs1, imm)])
             }
+            &[AsmInstruction::Addi(reg, 2, imm), AsmInstruction::Ld(out_reg, rs1, 0)]
+                if reg == rs1 && reg != 2 =>
+            {
+                Some(vec![AsmInstruction::Ld(out_reg, 2, imm)])
+            }
+            &[AsmInstruction::Addi(reg, 2, imm), AsmInstruction::Sd(out_reg, rs1, 0)]
+                if reg == rs1 && reg != 2 =>
+            {
+                Some(vec![AsmInstruction::Sd(out_reg, 2, imm)])
+            }
             _ => None,
         }
     }
@@ -29,7 +39,7 @@ impl<'a> PeepHoler<'a> {
     }
 
     fn find_and_replace(&self, block: &mut AsmBasicBlock, index: usize, size: usize) {
-        loop {
+        while index + size < block.len() {
             let result = self.database.query(&block[index..(index + size)]);
             match result {
                 Some(rewrite) => {
