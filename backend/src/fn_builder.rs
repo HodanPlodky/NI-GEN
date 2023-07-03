@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     insts::{AsmInstruction, Offset},
+    peepholer::PeepHoler,
     register_alloc::{RegAllocator, ValueCell},
     AsmBasicBlock, AsmFunction,
 };
@@ -67,14 +68,18 @@ impl<'a> AsmFunctionBuilder<'a> {
         block
     }
 
-    pub fn build(self) -> AsmFunction {
+    pub fn build(self, peepholer: PeepHoler) -> AsmFunction {
         if self.stacksize == 0 {
+            let mut blocks = self.blocks;
+            for block in &mut blocks {
+                peepholer.pass_basicblock(block, 2);
+            }
             return AsmFunction {
                 name: self.name,
-                blocks: self.blocks,
+                blocks,
             };
         }
-
+        
         // epilogues
         let mut blocks: Vec<AsmBasicBlock> = self
             .blocks
@@ -87,6 +92,10 @@ impl<'a> AsmFunctionBuilder<'a> {
             .first_mut()
             .expect("Totally empty function")
             .insert(0, AsmInstruction::Addi(2, 2, -(self.stacksize as i64)));
+
+        for block in &mut blocks {
+            peepholer.pass_basicblock(block, 2);
+        }
 
         let lens: Vec<usize> = blocks
             .iter()

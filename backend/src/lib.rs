@@ -2,6 +2,7 @@ pub mod emit;
 mod fn_builder;
 mod inst_selection;
 mod insts;
+mod peepholer;
 mod register_alloc;
 
 use fn_builder::AsmFunctionBuilder;
@@ -11,6 +12,7 @@ use middleend::{
     inst::BasicBlock,
     ir::{Function, IrProgram},
 };
+use peepholer::{MockDatabase, PeepHoler};
 use register_alloc::{LinearAllocator, NaiveAllocator};
 
 type Data = Vec<u8>;
@@ -63,7 +65,9 @@ fn asm_func(function: Function) -> AsmFunction {
         .into_iter()
         .for_each(|x| asm_basicblock(x, &mut builder));
 
-    builder.build()
+    let database = MockDatabase {};
+    let peephole = PeepHoler::new(&database);
+    builder.build(peephole)
 }
 
 fn asm_basicblock(block: BasicBlock, builder: &mut AsmFunctionBuilder) {
