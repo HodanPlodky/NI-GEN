@@ -79,14 +79,14 @@ pub enum AsmInstruction {
     Sra(Rd, Rd, Rd),
 
     // pseudo instructions
-    Call(String),
+    Call(String, middleend::inst::InstUUID),
     Ret,
 }
 
 impl AsmInstruction {
     fn size(&self) -> usize {
         match self {
-            AsmInstruction::Call(_) => 4,
+            AsmInstruction::Call(_, _) => 4,
             AsmInstruction::Add(_, _, _) => 4,
             _ => 4,
         }

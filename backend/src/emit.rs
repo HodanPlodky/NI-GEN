@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{AsmFunction, AsmInstruction, AsmProgram, backend_ir::AsmBasicBlock};
+use crate::{backend_ir::AsmBasicBlock, AsmFunction, AsmInstruction, AsmProgram};
 
 impl Display for AsmInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -46,7 +46,7 @@ impl Display for AsmInstruction {
             AsmInstruction::Or(x, y, z) => write!(f, "or {}, {}, {}", x, y, z),
             AsmInstruction::And(x, y, z) => write!(f, "and {}, {}, {}", x, y, z),
             AsmInstruction::Sra(x, y, z) => write!(f, "sra {}, {}, {}", x, y, z),
-            AsmInstruction::Call(imm) => write!(f, "call {}", imm),
+            AsmInstruction::Call(imm, _) => write!(f, "call {}", imm),
             AsmInstruction::Ret => write!(f, "ret"),
             AsmInstruction::Mul(x, y, z) => write!(f, "mul {}, {}, {}", x, y, z),
         }

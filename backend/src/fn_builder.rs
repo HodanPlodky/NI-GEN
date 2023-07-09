@@ -122,7 +122,8 @@ impl<'a> AsmFunctionBuilder<'a> {
         reg_allocator: &dyn RegAllocator,
         inst: AsmInstruction,
         block: &mut AsmBasicBlock,
-    ) {
+        stacksize: Offset,
+    ) -> Offset {
         let mut temp = vec![29, 30, 31];
         let mut inst = inst;
 
@@ -240,17 +241,49 @@ impl<'a> AsmFunctionBuilder<'a> {
             }
             _ => (),
         };
+
+        let mut stack_added = 0;
+        if let AsmInstruction::Call(_, inst_id) = inst {
+            let used = reg_allocator.get_used(inst_id);
+            for reg in used {
+                before.push(AsmInstruction::Sd(
+                    Rd::Arch(*reg),
+                    Rd::Sp,
+                    stacksize + stack_added,
+                ));
+                after.insert(
+                    0,
+                    AsmInstruction::Ld(Rd::Arch(*reg), Rd::Sp, stacksize + stack_added),
+                );
+                stack_added += 8;
+            }
+        }
+
         block.append(&mut before);
         block.push(inst);
         block.append(&mut after);
+        stack_added
     }
 
-    fn patch_ir_registers(reg_allocator: &dyn RegAllocator, block: AsmBasicBlock) -> AsmBasicBlock {
+    fn patch_ir_registers(
+        reg_allocator: &dyn RegAllocator,
+        block: AsmBasicBlock,
+        stack_size: Offset,
+    ) -> (AsmBasicBlock, Offset) {
         let mut result = vec![];
+        let mut biggest_stack = 0;
         for inst in block {
-            AsmFunctionBuilder::patch_ir_register_inst(reg_allocator, inst, &mut result);
+            biggest_stack = std::cmp::max(
+                AsmFunctionBuilder::patch_ir_register_inst(
+                    reg_allocator,
+                    inst,
+                    &mut result,
+                    stack_size,
+                ),
+                biggest_stack,
+            );
         }
-        result
+        (result, biggest_stack)
     }
 
     fn remove_unused_bb(block: &mut AsmBasicBlock, used: &HashSet<Rd>) -> bool {
@@ -269,7 +302,7 @@ impl<'a> AsmFunctionBuilder<'a> {
     }
 
     fn get_used_regs(blocks: &Vec<AsmBasicBlock>) -> HashSet<Rd> {
-        blocks
+        let tmp: HashSet<Rd> = blocks
             .into_iter()
             .map(|x| {
                 x.iter()
@@ -278,7 +311,9 @@ impl<'a> AsmFunctionBuilder<'a> {
                     .collect::<Vec<Rd>>()
             })
             .flatten()
-            .collect()
+            .collect();
+
+        tmp
     }
 
     fn remove_unused(blocks: &mut Vec<AsmBasicBlock>) -> bool {
@@ -324,11 +359,18 @@ impl<'a> AsmFunctionBuilder<'a> {
         );
         let stacksize = reg_allocator.get_stacksize();
 
+        let mut biggest_addition = 0;
         // do register allocation
         let blocks: Vec<AsmBasicBlock> = blocks
             .into_iter()
-            .map(|x| AsmFunctionBuilder::patch_ir_registers(&reg_allocator, x))
+            .map(|x| {
+                let (block, addition) =
+                    AsmFunctionBuilder::patch_ir_registers(&reg_allocator, x, stacksize as i64);
+                biggest_addition = std::cmp::max(addition, biggest_addition);
+                block
+            })
             .collect();
+        let stacksize = stacksize + biggest_addition as usize;
 
         // epilogues
         let mut blocks: Vec<AsmBasicBlock> = blocks
@@ -391,42 +433,5 @@ impl<'a> AsmFunctionBuilder<'a> {
 
     pub fn add_instruction(&mut self, inst: AsmInstruction) {
         self.blocks.last_mut().unwrap().push(inst);
-    }
-
-    pub fn store_live(&mut self, inst: middleend::inst::InstUUID) -> Vec<Offset> {
-        let (_, bb_index, inst_index) = inst;
-        let mut result = vec![];
-        let tmp: Vec<middleend::inst::Register> = self.liveness[bb_index][inst_index]
-            .iter()
-            .filter(|(_, bb_index, inst_index)| {
-                match self.ir_function[*bb_index][*inst_index].data {
-                    middleend::inst::InstructionType::Alloca(_) => false,
-                    _ => true,
-                }
-            })
-            .cloned()
-            .collect();
-        for reg in tmp {
-            result.push(self.force_store(Rd::Ir(reg.clone())));
-        }
-        result
-    }
-
-    pub fn load_live(&mut self, inst: middleend::inst::InstUUID, offsets: Vec<Offset>) {
-        let (_, bb_index, inst_index) = inst;
-        let tmp: Vec<(middleend::inst::Register, Offset)> = self.liveness[bb_index][inst_index]
-            .iter()
-            .filter(|(_, bb_index, inst_index)| {
-                match self.ir_function[*bb_index][*inst_index].data {
-                    middleend::inst::InstructionType::Alloca(_) => false,
-                    _ => true,
-                }
-            })
-            .cloned()
-            .zip(offsets.iter().cloned())
-            .collect();
-        for (reg, offset) in tmp {
-            self.add_instruction(AsmInstruction::Ld(Rd::Ir(reg), Rd::Sp, offset));
-        }
     }
 }
