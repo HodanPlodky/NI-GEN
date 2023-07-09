@@ -69,6 +69,8 @@ impl<'a> AsmFunctionBuilder<'a> {
             Some(AsmInstruction::Jal(_, offset, _))
             | Some(AsmInstruction::Jalr(_, _, offset))
             | Some(AsmInstruction::Beq(_, _, offset, _))
+            | Some(AsmInstruction::Blt(_, _, offset, _))
+            | Some(AsmInstruction::Bge(_, _, offset, _))
             | Some(AsmInstruction::Bne(_, _, offset, _)) => {
                 *offset = offsets[*offset as usize] as i64;
             }
@@ -359,8 +361,8 @@ impl<'a> AsmFunctionBuilder<'a> {
         );
         let stacksize = reg_allocator.get_stacksize();
 
-        let mut biggest_addition = 0;
         // do register allocation
+        let mut biggest_addition = 0;
         let blocks: Vec<AsmBasicBlock> = blocks
             .into_iter()
             .map(|x| {
@@ -383,8 +385,6 @@ impl<'a> AsmFunctionBuilder<'a> {
             .first_mut()
             .expect("Totally empty function")
             .insert(0, AsmInstruction::Addi(Rd::Sp, Rd::Sp, -(stacksize as i64)));
-
-        AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
 
         let lens: Vec<usize> = blocks
             .iter()

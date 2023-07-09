@@ -42,8 +42,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         middleend::inst::InstructionType::Xor(_) => todo!(),
         middleend::inst::InstructionType::Neg(_) => todo!(),
         &middleend::inst::InstructionType::Le(RegReg(rs1, rs2)) => {
-            builder.add_instruction(AsmInstruction::Addi(Ir(reg), Ir(rs2), 1));
-            builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Ir(reg)));
+            builder.add_instruction(AsmInstruction::Addi(Arch(31), Ir(rs2), 1));
+            builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Arch(31)));
         }
         &middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Ir(rs2)));

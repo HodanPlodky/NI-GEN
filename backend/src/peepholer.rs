@@ -49,6 +49,13 @@ impl Database for MockDatabase {
                 ])
             }
             &[AsmInstruction::Sd(rd_sd, rs_sd, offset_sd), AsmInstruction::Ld(rd_ld, rs_ld, offset_ld)]
+                if rs_sd == rs_ld && offset_sd == offset_ld && rd_sd == rd_ld =>
+            {
+                Some(vec![
+                    AsmInstruction::Sd(rd_sd, rs_sd, offset_sd),
+                ])
+            }
+            &[AsmInstruction::Sd(rd_sd, rs_sd, offset_sd), AsmInstruction::Ld(rd_ld, rs_ld, offset_ld)]
                 if rs_sd == rs_ld && offset_sd == offset_ld =>
             {
                 Some(vec![
@@ -59,10 +66,9 @@ impl Database for MockDatabase {
             [AsmInstruction::Slt(rd, rs1, rs2), AsmInstruction::Beq(rs1_b, Zero, offset_ld, name)]
                 if *rd == *rs1_b =>
             {
-                println!("hey");
                 Some(vec![
                     AsmInstruction::Slt(*rd, *rs1, *rs2),
-                    AsmInstruction::Blt(*rs1, *rs2, *offset_ld, name.clone()),
+                    AsmInstruction::Bge(*rs1, *rs2, *offset_ld, name.clone()),
                 ])
             }
             _ => None,
@@ -81,7 +87,7 @@ impl<'a> PeepHoler<'a> {
 
     fn find_and_replace(&self, block: &mut AsmBasicBlock, index: usize, size: usize) -> bool {
         let mut change = false;
-        while index + size < block.len() {
+        while index + size <= block.len() {
             let result = self.database.query(&block[index..(index + size)]);
             match result {
                 Some(rewrite) => {
@@ -101,7 +107,7 @@ impl<'a> PeepHoler<'a> {
 
     pub fn pass_basicblock(&self, block: &mut AsmBasicBlock, size: usize) -> bool {
         let mut change = false;
-        for s in 1..=size {
+        for s in (1..=size).rev() {
             let mut index = 0;
             while index + s <= block.len() {
                 change |= self.find_and_replace(block, index, s);
