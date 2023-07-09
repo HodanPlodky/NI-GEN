@@ -56,6 +56,15 @@ impl Database for MockDatabase {
                     AsmInstruction::Addi(rd_ld, rd_sd, 0),
                 ])
             }
+            [AsmInstruction::Slt(rd, rs1, rs2), AsmInstruction::Beq(rs1_b, Zero, offset_ld, name)]
+                if *rd == *rs1_b =>
+            {
+                println!("hey");
+                Some(vec![
+                    AsmInstruction::Slt(*rd, *rs1, *rs2),
+                    AsmInstruction::Blt(*rs1, *rs2, *offset_ld, name.clone()),
+                ])
+            }
             _ => None,
         }
     }
@@ -94,7 +103,7 @@ impl<'a> PeepHoler<'a> {
         let mut change = false;
         for s in 1..=size {
             let mut index = 0;
-            while index + size <= block.len() {
+            while index + s <= block.len() {
                 change |= self.find_and_replace(block, index, s);
                 index += 1;
             }
