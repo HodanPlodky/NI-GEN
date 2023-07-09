@@ -7,7 +7,7 @@ use middleend::{
 
 use crate::insts::Rd;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ValueCell {
     Register(usize),
     StackOffset(i64),
@@ -98,10 +98,9 @@ pub struct LinearAllocator {
 }
 
 impl LinearAllocator {
-    pub fn new(function: &middleend::ir::Function, used_ir : HashSet<Rd>, stacksize : i64) -> Self {
-        let mut liveanalysis = LiveRegisterAnalysis::new(function);
+    pub fn new(function: &middleend::ir::Function, used_ir : HashSet<Rd>, stacksize : i64, liveness: Vec<Vec<HashSet<middleend::inst::Register>>>) -> Self {
         let mut res = Self {
-            liveness: liveanalysis.analyze(),
+            liveness,
             freeowned: vec![5, 6, 7, 28],
             used_register: vec![],
             registers: HashMap::new(),

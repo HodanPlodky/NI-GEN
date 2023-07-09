@@ -61,7 +61,9 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 builder.add_instruction(AsmInstruction::Addi(ArgReg(i as u8), Ir(regs[i]), 0));
             }
             let offset = builder.force_store(Ra);
+            let offsets = builder.store_live(reg);
             builder.add_instruction(AsmInstruction::Call(sym.clone()));
+            builder.load_live(reg, offsets);
             builder.add_instruction(AsmInstruction::Ld(Ra, Sp, offset));
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), ArgReg(0), 0));
         }

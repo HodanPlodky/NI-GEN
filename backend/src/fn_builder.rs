@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use middleend::ir::Function;
+use middleend::{
+    analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
+    ir::Function,
+};
 
 use crate::{
     backend_ir::AsmBasicBlock,
@@ -17,6 +20,7 @@ pub struct AsmFunctionBuilder<'a> {
     stacksize: usize,
     pub actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
+    liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
 
     freetemp: Vec<usize>,
     ir_function: &'a Function,
@@ -24,7 +28,9 @@ pub struct AsmFunctionBuilder<'a> {
 
 impl<'a> AsmFunctionBuilder<'a> {
     pub fn new(name: String, ir_function: &'a Function) -> Self {
+        let mut lifeanalysis = LiveRegisterAnalysis::new(ir_function);
         Self {
+            liveness: lifeanalysis.analyze(),
             name,
             stacksize: 0,
             actual_bb: 0,
@@ -103,7 +109,10 @@ impl<'a> AsmFunctionBuilder<'a> {
                         vec![],
                     )
                 }
-                _ => unreachable!(),
+                x => {
+                    println!("{:?}", x);
+                    unreachable!()
+                }
             },
             _ => (vec![], reg, vec![]),
         }
@@ -307,7 +316,12 @@ impl<'a> AsmFunctionBuilder<'a> {
         AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
 
         let used_regs = AsmFunctionBuilder::get_used_regs(&blocks);
-        let reg_allocator = LinearAllocator::new(self.ir_function, used_regs, self.stacksize as i64);
+        let reg_allocator = LinearAllocator::new(
+            self.ir_function,
+            used_regs,
+            self.stacksize as i64,
+            self.liveness,
+        );
         let stacksize = reg_allocator.get_stacksize();
 
         // do register allocation
@@ -323,10 +337,10 @@ impl<'a> AsmFunctionBuilder<'a> {
             .collect();
 
         // prolog
-        blocks.first_mut().expect("Totally empty function").insert(
-            0,
-            AsmInstruction::Addi(Rd::Sp, Rd::Sp, -(stacksize as i64)),
-        );
+        blocks
+            .first_mut()
+            .expect("Totally empty function")
+            .insert(0, AsmInstruction::Addi(Rd::Sp, Rd::Sp, -(stacksize as i64)));
 
         AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
 
@@ -358,45 +372,6 @@ impl<'a> AsmFunctionBuilder<'a> {
         self.blocks.len() - 1
     }
 
-    // get register with values stored in ValueCell
-    //pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
-    //match self.reg_allocator.get_location(reg) {
-    //ValueCell::Register(reg) => reg,
-    //ValueCell::StackOffset(offset) => {
-    //let target = self.freetemp.pop().unwrap().clone();
-    //self.add_instruction(AsmInstruction::Ld(Rd::Arch(target), Rd::Sp, offset));
-    //target
-    //}
-    //ValueCell::Value(val) => {
-    //let target = self.freetemp.pop().unwrap().clone();
-    //self.add_instruction(AsmInstruction::Addi(Rd::Arch(target), Rd::Sp, val));
-    //target
-    //}
-    //}
-    //}
-    //
-    //// get register, value is not guranteed
-    //pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
-    //match self.reg_allocator.get_location(reg) {
-    //ValueCell::Register(reg) => reg,
-    //ValueCell::StackOffset(_) => {
-    //let target = self.freetemp.pop().unwrap().clone();
-    //target
-    //}
-    //_ => unreachable!(),
-    //}
-    //}
-    //
-    //pub fn store_reg(&mut self, reg: middleend::inst::Register, tmpreg: usize) {
-    //match self.reg_allocator.get_location(reg) {
-    //ValueCell::Register(_) => (),
-    //ValueCell::StackOffset(offset) => {
-    //self.add_instruction(AsmInstruction::Sd(Rd::Arch(tmpreg), Rd::Sp, offset))
-    //}
-    //_ => unreachable!(),
-    //}
-    //}
-
     pub fn force_store(&mut self, reg: Rd) -> Offset {
         let offset = self.stacksize;
         self.stacksize += 8;
@@ -416,5 +391,42 @@ impl<'a> AsmFunctionBuilder<'a> {
 
     pub fn add_instruction(&mut self, inst: AsmInstruction) {
         self.blocks.last_mut().unwrap().push(inst);
+    }
+
+    pub fn store_live(&mut self, inst: middleend::inst::InstUUID) -> Vec<Offset> {
+        let (_, bb_index, inst_index) = inst;
+        let mut result = vec![];
+        let tmp: Vec<middleend::inst::Register> = self.liveness[bb_index][inst_index]
+            .iter()
+            .filter(|(_, bb_index, inst_index)| {
+                match self.ir_function[*bb_index][*inst_index].data {
+                    middleend::inst::InstructionType::Alloca(_) => false,
+                    _ => true,
+                }
+            })
+            .cloned()
+            .collect();
+        for reg in tmp {
+            result.push(self.force_store(Rd::Ir(reg.clone())));
+        }
+        result
+    }
+
+    pub fn load_live(&mut self, inst: middleend::inst::InstUUID, offsets: Vec<Offset>) {
+        let (_, bb_index, inst_index) = inst;
+        let tmp: Vec<(middleend::inst::Register, Offset)> = self.liveness[bb_index][inst_index]
+            .iter()
+            .filter(|(_, bb_index, inst_index)| {
+                match self.ir_function[*bb_index][*inst_index].data {
+                    middleend::inst::InstructionType::Alloca(_) => false,
+                    _ => true,
+                }
+            })
+            .cloned()
+            .zip(offsets.iter().cloned())
+            .collect();
+        for (reg, offset) in tmp {
+            self.add_instruction(AsmInstruction::Ld(Rd::Ir(reg), Rd::Sp, offset));
+        }
     }
 }
