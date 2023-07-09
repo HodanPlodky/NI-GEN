@@ -116,7 +116,7 @@ where
     fn inner_lattice(&self) -> &dyn Lattice<A>;
     /// helper function for getting function
     fn function(&self) -> &Function;
-    ///
+    /// helper function for setting function
     fn set_function(&mut self, function: &'a Function);
     /// helper function for type of analysis
     fn direction(&self) -> DataflowType;

@@ -5,6 +5,8 @@ use middleend::{
     inst::BasicBlock,
 };
 
+use crate::insts::Rd;
+
 #[derive(Clone, Copy)]
 pub enum ValueCell {
     Register(usize),
@@ -91,11 +93,12 @@ pub struct LinearAllocator {
     registers: HashMap<middleend::inst::Register, ValueCell>,
     release: Vec<Vec<Vec<middleend::inst::Register>>>,
     used: Vec<Vec<Vec<usize>>>,
+    used_ir: HashSet<Rd>,
     stacksize: i64,
 }
 
 impl LinearAllocator {
-    pub fn new(function: &middleend::ir::Function) -> Self {
+    pub fn new(function: &middleend::ir::Function, used_ir : HashSet<Rd>) -> Self {
         let mut liveanalysis = LiveRegisterAnalysis::new(function);
         let mut res = Self {
             liveness: liveanalysis.analyze(),
@@ -112,6 +115,7 @@ impl LinearAllocator {
                 .iter()
                 .map(|x| x.iter().map(|_| vec![]).collect())
                 .collect(),
+            used_ir,
             stacksize: 0,
         };
         res.allocate(function);
@@ -121,6 +125,9 @@ impl LinearAllocator {
     fn allocate(&mut self, prog: &middleend::ir::Function) {
         for block in prog.blocks.iter() {
             for inst in block.iter() {
+                if !self.used_ir.contains(&Rd::Ir(inst.id)) {
+                    continue;
+                }
                 match &inst.data {
                     middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
                         self.registers

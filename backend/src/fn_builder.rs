@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use middleend::ir::Function;
 
 use crate::{
-    insts::{AsmInstruction, Offset},
+    backend_ir::AsmBasicBlock,
+    insts::{AsmInstruction, Offset, Rd},
     peepholer::PeepHoler,
-    register_alloc::{RegAllocator, ValueCell},
-    AsmBasicBlock, AsmFunction,
+    register_alloc::{RegAllocator, ValueCell, LinearAllocator},
+    AsmFunction,
 };
 
 pub type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
@@ -15,20 +18,20 @@ pub struct AsmFunctionBuilder<'a> {
     pub actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
 
-    reg_allocator: &'a dyn RegAllocator,
     freetemp: Vec<usize>,
+    ir_function : &'a Function,
 }
 
 impl<'a> AsmFunctionBuilder<'a> {
-    pub fn new(name: String, reg_allocator: &'a dyn RegAllocator) -> Self {
+    pub fn new(name: String, ir_function : &'a Function) -> Self {
         Self {
             name,
-            stacksize: reg_allocator.get_stacksize(),
+            stacksize: 0,
             actual_bb: 0,
             blocks: vec![],
 
-            reg_allocator,
             freetemp: vec![29, 30, 31],
+            ir_function,
         }
     }
 
@@ -37,7 +40,7 @@ impl<'a> AsmFunctionBuilder<'a> {
         match block.last() {
             Some(AsmInstruction::Ret) => {
                 block.pop();
-                block.push(AsmInstruction::Addi(2, 2, stacksize as i64));
+                block.push(AsmInstruction::Addi(Rd::Sp, Rd::Sp, stacksize as i64));
                 block.push(AsmInstruction::Ret);
                 block
             }
@@ -68,38 +71,91 @@ impl<'a> AsmFunctionBuilder<'a> {
         block
     }
 
-    pub fn build(self, peepholer: PeepHoler) -> AsmFunction {
-        if self.stacksize == 0 {
-            let mut blocks = self.blocks;
-            for _ in 0..10 {
-                for block in &mut blocks {
-                    peepholer.pass_basicblock(block, 2);
+    fn patch_ir_registers(reg_allocator : &dyn RegAllocator, block: AsmBasicBlock) -> AsmBasicBlock {
+        let mut block = block;
+
+        block
+    }
+
+    fn remove_unused_bb(block: &mut AsmBasicBlock, used: &HashSet<Rd>) -> bool {
+        let mut change = false;
+        let mut index = 0;
+        while index < block.len() {
+            match block[index].get_write() {
+                Some(Rd::Ir(rd)) if !used.contains(&Rd::Ir(rd)) => {
+                    block.remove(index);
+                    change = true;
                 }
+                Some(_) | None => index += 1,
             }
-            return AsmFunction {
-                name: self.name,
-                blocks,
-            };
         }
+        change
+    }
+
+    fn get_used_regs(blocks: &Vec<AsmBasicBlock>) -> HashSet<Rd> {
+        blocks
+            .into_iter()
+            .map(|x| x.iter().map(|x| x.get_reads()).flatten().collect::<Vec<Rd>>())
+            .flatten()
+            .collect()
+    }
+
+    fn remove_unused(blocks: &mut Vec<AsmBasicBlock>) -> bool {
+        let mut change = false;
+        loop {
+            let used = AsmFunctionBuilder::get_used_regs(blocks);
+            let mut inter_change = false;
+            for block in blocks.iter_mut() {
+                inter_change |= AsmFunctionBuilder::remove_unused_bb(block, &used);
+            }
+            change |= inter_change;
+            if !inter_change {
+                break;
+            }
+        }
+        change
+    }
+
+    fn peepholer_run(peepholer: &PeepHoler, blocks : &mut Vec<AsmBasicBlock>) {
+        loop {
+            let mut change = false;
+            for block in blocks.iter_mut() {
+                change |= peepholer.pass_basicblock(block, 2);
+            }
+            change |= AsmFunctionBuilder::remove_unused(blocks);
+
+            if !change {
+                break;
+            }
+        }
+    }
+
+    pub fn build(self, peepholer: PeepHoler) -> AsmFunction {
+        let mut blocks = self.blocks;
+        //AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
+        
+        let used_regs = AsmFunctionBuilder::get_used_regs(&blocks);
+        let reg_allocator = LinearAllocator::new(self.ir_function, used_regs);
+
+        // do register allocation
+        let blocks: Vec<AsmBasicBlock> = blocks
+            .into_iter()
+            .map(|x| AsmFunctionBuilder::patch_ir_registers(&reg_allocator, x))
+            .collect();
 
         // epilogues
-        let mut blocks: Vec<AsmBasicBlock> = self
-            .blocks
+        let mut blocks: Vec<AsmBasicBlock> = blocks
             .into_iter()
             .map(|x| AsmFunctionBuilder::add_epilogue(x, self.stacksize))
             .collect();
 
         // prolog
-        blocks
-            .first_mut()
-            .expect("Totally empty function")
-            .insert(0, AsmInstruction::Addi(2, 2, -(self.stacksize as i64)));
+        blocks.first_mut().expect("Totally empty function").insert(
+            0,
+            AsmInstruction::Addi(Rd::Sp, Rd::Sp, -(self.stacksize as i64)),
+        );
 
-        for _ in 0..10 {
-            for block in &mut blocks {
-                peepholer.pass_basicblock(block, 2);
-            }
-        }
+        //AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
 
         let lens: Vec<usize> = blocks
             .iter()
@@ -130,48 +186,48 @@ impl<'a> AsmFunctionBuilder<'a> {
     }
 
     // get register with values stored in ValueCell
-    pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
-        match self.reg_allocator.get_location(reg) {
-            ValueCell::Register(reg) => reg,
-            ValueCell::StackOffset(offset) => {
-                let target = self.freetemp.pop().unwrap().clone();
-                self.add_instruction(AsmInstruction::Ld(target, 2, offset));
-                target
-            }
-            ValueCell::Value(val) => {
-                let target = self.freetemp.pop().unwrap().clone();
-                self.add_instruction(AsmInstruction::Addi(target, 2, val));
-                target
-            }
-        }
-    }
+    //pub fn load_reg(&mut self, reg: middleend::inst::Register) -> usize {
+        //match self.reg_allocator.get_location(reg) {
+            //ValueCell::Register(reg) => reg,
+            //ValueCell::StackOffset(offset) => {
+                //let target = self.freetemp.pop().unwrap().clone();
+                //self.add_instruction(AsmInstruction::Ld(Rd::Arch(target), Rd::Sp, offset));
+                //target
+            //}
+            //ValueCell::Value(val) => {
+                //let target = self.freetemp.pop().unwrap().clone();
+                //self.add_instruction(AsmInstruction::Addi(Rd::Arch(target), Rd::Sp, val));
+                //target
+            //}
+        //}
+    //}
+//
+    //// get register, value is not guranteed
+    //pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
+        //match self.reg_allocator.get_location(reg) {
+            //ValueCell::Register(reg) => reg,
+            //ValueCell::StackOffset(_) => {
+                //let target = self.freetemp.pop().unwrap().clone();
+                //target
+            //}
+            //_ => unreachable!(),
+        //}
+    //}
+//
+    //pub fn store_reg(&mut self, reg: middleend::inst::Register, tmpreg: usize) {
+        //match self.reg_allocator.get_location(reg) {
+            //ValueCell::Register(_) => (),
+            //ValueCell::StackOffset(offset) => {
+                //self.add_instruction(AsmInstruction::Sd(Rd::Arch(tmpreg), Rd::Sp, offset))
+            //}
+            //_ => unreachable!(),
+        //}
+    //}
 
-    // get register, value is not guranteed
-    pub fn get_reg(&mut self, reg: middleend::inst::Register) -> usize {
-        match self.reg_allocator.get_location(reg) {
-            ValueCell::Register(reg) => reg,
-            ValueCell::StackOffset(_) => {
-                let target = self.freetemp.pop().unwrap().clone();
-                target
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn store_reg(&mut self, reg: middleend::inst::Register, tmpreg: usize) {
-        match self.reg_allocator.get_location(reg) {
-            ValueCell::Register(_) => (),
-            ValueCell::StackOffset(offset) => {
-                self.add_instruction(AsmInstruction::Sd(tmpreg, 2, offset))
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn force_store(&mut self, reg: usize) -> Offset {
+    pub fn force_store(&mut self, reg: Rd) -> Offset {
         let offset = self.stacksize;
         self.stacksize += 8;
-        self.add_instruction(AsmInstruction::Sd(reg, 2, offset as i64));
+        self.add_instruction(AsmInstruction::Sd(reg, Rd::Sp, offset as i64));
         offset as i64
     }
 
@@ -187,21 +243,5 @@ impl<'a> AsmFunctionBuilder<'a> {
 
     pub fn add_instruction(&mut self, inst: AsmInstruction) {
         self.blocks.last_mut().unwrap().push(inst);
-    }
-
-    pub fn store_used(&mut self, inst: middleend::inst::InstUUID) -> Vec<Offset> {
-        let used = self.reg_allocator.get_used(inst);
-        let mut result = vec![];
-        for reg in used {
-            result.push(self.force_store(*reg));
-        }
-        result
-    }
-
-    pub fn load_used(&mut self, inst: middleend::inst::InstUUID, offsets: Vec<Offset>) {
-        let used = self.reg_allocator.get_used(inst);
-        for (reg, offset) in used.iter().zip(offsets.iter()) {
-            self.add_instruction(AsmInstruction::Ld(*reg, 2, *offset));
-        }
     }
 }
