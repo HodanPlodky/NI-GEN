@@ -98,7 +98,7 @@ pub struct LinearAllocator {
 }
 
 impl LinearAllocator {
-    pub fn new(function: &middleend::ir::Function, used_ir : HashSet<Rd>) -> Self {
+    pub fn new(function: &middleend::ir::Function, used_ir : HashSet<Rd>, stacksize : i64) -> Self {
         let mut liveanalysis = LiveRegisterAnalysis::new(function);
         let mut res = Self {
             liveness: liveanalysis.analyze(),
@@ -116,7 +116,7 @@ impl LinearAllocator {
                 .map(|x| x.iter().map(|_| vec![]).collect())
                 .collect(),
             used_ir,
-            stacksize: 0,
+            stacksize,
         };
         res.allocate(function);
         res
