@@ -133,7 +133,8 @@ impl<'a> PeepHoler<'a> {
         }
         change
     }
-
+    
+    #[allow(dead_code)]
     pub fn pass_function(&self, function: &mut AsmFunction, size: usize) -> bool {
         let mut change = false;
         for block in &mut function.blocks {

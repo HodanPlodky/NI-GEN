@@ -84,6 +84,7 @@ pub enum AsmInstruction {
 }
 
 impl AsmInstruction {
+    #[allow(dead_code)]
     fn size(&self) -> usize {
         match self {
             AsmInstruction::Call(_, _) => 4,

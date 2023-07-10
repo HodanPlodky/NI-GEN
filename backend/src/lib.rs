@@ -6,7 +6,7 @@ mod insts;
 mod peepholer;
 mod register_alloc;
 
-use backend_ir::{AsmProgram, AsmFunction};
+use backend_ir::{AsmFunction, AsmProgram};
 use fn_builder::AsmFunctionBuilder;
 use inst_selection::basic_instruction_selection;
 use insts::AsmInstruction;
@@ -15,7 +15,6 @@ use middleend::{
     ir::{Function, IrProgram},
 };
 use peepholer::{MockDatabase, PeepHoler};
-use register_alloc::{LinearAllocator, NaiveAllocator};
 
 pub fn asm_compile(ir_program: IrProgram) -> AsmProgram {
     let mut start = asm_func(ir_program.glob);

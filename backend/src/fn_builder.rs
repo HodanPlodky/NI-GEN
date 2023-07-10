@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use middleend::{
     analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
@@ -12,8 +12,6 @@ use crate::{
     register_alloc::{LinearAllocator, RegAllocator, ValueCell},
     AsmFunction,
 };
-
-pub type OffsetEnv = HashMap<middleend::inst::Register, Offset>;
 
 pub struct AsmFunctionBuilder<'a> {
     pub name: String,
@@ -420,12 +418,6 @@ impl<'a> AsmFunctionBuilder<'a> {
         let offset = self.stacksize;
         self.stacksize += 8;
         self.add_instruction(AsmInstruction::Sd(reg, Rd::Sp, offset as i64));
-        offset as i64
-    }
-
-    pub fn allocate_stack(&mut self, size: i64) -> Offset {
-        let offset = self.stacksize;
-        self.stacksize += size as usize;
         offset as i64
     }
 

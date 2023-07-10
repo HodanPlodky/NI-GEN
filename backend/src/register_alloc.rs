@@ -1,9 +1,8 @@
+#[allow(dead_code)]
+#[allow(dead_code)]
 use std::collections::{HashMap, HashSet};
 
-use middleend::{
-    analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
-    inst::BasicBlock,
-};
+use middleend::inst::BasicBlock;
 
 use crate::insts::Rd;
 
@@ -20,16 +19,16 @@ pub trait RegAllocator {
     fn get_stacksize(&self) -> usize;
 }
 
-/*
- * First gets the space and has it to the end of the
- * usage of this allocator
- */
+#[allow(dead_code)]
+/// First gets the space and has it to the end of the
+/// usage of this allocator
 pub struct NaiveAllocator {
     freeowned: Vec<usize>,
     registers: HashMap<middleend::inst::Register, ValueCell>,
     stacksize: i64,
 }
 
+#[allow(dead_code)]
 impl NaiveAllocator {
     pub fn new(function: &middleend::ir::Function) -> Self {
         let mut res = Self {
@@ -73,7 +72,7 @@ impl RegAllocator for NaiveAllocator {
         self.registers[&reg]
     }
 
-    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize> {
+    fn get_used(&self, _inst: middleend::inst::InstUUID) -> &Vec<usize> {
         todo!()
     }
 
@@ -82,10 +81,8 @@ impl RegAllocator for NaiveAllocator {
     }
 }
 
-/*
- * First gets the space but it only has
- * is for a duration of the lifetime of the ir register
- */
+/// First gets the space but it only has
+/// is for a duration of the lifetime of the ir register
 pub struct LinearAllocator {
     liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
     freeowned: Vec<usize>,
@@ -208,7 +205,6 @@ impl RegAllocator for LinearAllocator {
     }
 }
 
-/*
- * This one is a big boy
- */
+#[allow(dead_code)]
+/// This one is a big boy
 pub struct ColoringAllocator;

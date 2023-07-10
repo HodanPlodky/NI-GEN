@@ -6,7 +6,6 @@ use crate::{insts::AsmInstruction, AsmFunctionBuilder};
 
 pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuilder) {
     use crate::insts::Rd::*;
-    let a: [usize; 8] = [10, 11, 12, 13, 14, 15, 16, 17];
     let reg = inst.id;
     match &inst.data {
         &middleend::inst::InstructionType::Ldi(ImmI(imm)) => {
