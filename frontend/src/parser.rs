@@ -287,10 +287,19 @@ impl Parser {
 
         if self.top().tok == TokenType::LeftSquare {
             self.pop();
-            let index = self.e9()?;
+            let index = if let TokenType::Int(index) = self.pop().tok {
+                Ok(index)
+            } else {
+               Err(ParserError::NonNumberAsSize) 
+            }?;
+            
+            if index < 0 {
+                return Err(ParserError::NegativeArraySize.into());
+            }
+             
             var_type = TypeDef::Array(ArrayType {
                 inner_type: Box::new(var_type),
-                index: Box::new(index),
+                index: index as usize,
             });
             self.compare(TokenType::RightSquare)?;
         }
@@ -715,6 +724,9 @@ mod tests {
     fn test_array_parser() {
         program_ok("int main() {int * a; return a[0]; }");
         program_ok("int main() {int a[5]; return a[0]; }");
+        program_err("int main() {int x = 5; int a[x]; return a[0]; }");
+        program_err("int main() {int a[1 + 2]; return a[0]; }");
+        program_err("int main() {int a[-2]; return a[0]; }");
     }
 
     #[test]

@@ -18,6 +18,8 @@ pub enum ParserError {
     InvalidType(TokenType),
     VarDeclInvalidName,
     FieldCannotHaveInit,
+    NonNumberAsSize,
+    NegativeArraySize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

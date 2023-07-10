@@ -1,4 +1,4 @@
-use crate::ast::{Expr, FnDecl, FnDef, StructDefType};
+use crate::ast::{FnDecl, FnDef, StructDefType};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PrimType {
@@ -48,7 +48,7 @@ impl From<FnDef> for FnType {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArrayType {
     pub inner_type: Box<TypeDef>,
-    pub index: Box<Expr>,
+    pub index: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
