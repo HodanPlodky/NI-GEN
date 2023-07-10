@@ -386,6 +386,8 @@ impl<'a> AsmFunctionBuilder<'a> {
             .expect("Totally empty function")
             .insert(0, AsmInstruction::Addi(Rd::Sp, Rd::Sp, -(stacksize as i64)));
 
+        AsmFunctionBuilder::peepholer_run(&peepholer, &mut blocks);
+
         let lens: Vec<usize> = blocks
             .iter()
             .map(|x| AsmFunctionBuilder::bb_size(x))
