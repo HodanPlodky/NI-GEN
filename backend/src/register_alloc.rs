@@ -5,7 +5,9 @@ use middleend::{
     inst::BasicBlock,
 };
 
-#[derive(Clone, Copy)]
+use crate::insts::Rd;
+
+#[derive(Clone, Copy, Debug)]
 pub enum ValueCell {
     Register(usize),
     StackOffset(i64),
@@ -91,14 +93,19 @@ pub struct LinearAllocator {
     registers: HashMap<middleend::inst::Register, ValueCell>,
     release: Vec<Vec<Vec<middleend::inst::Register>>>,
     used: Vec<Vec<Vec<usize>>>,
+    used_ir: HashSet<Rd>,
     stacksize: i64,
 }
 
 impl LinearAllocator {
-    pub fn new(function: &middleend::ir::Function) -> Self {
-        let mut liveanalysis = LiveRegisterAnalysis::new(function);
+    pub fn new(
+        function: &middleend::ir::Function,
+        used_ir: HashSet<Rd>,
+        stacksize: i64,
+        liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
+    ) -> Self {
         let mut res = Self {
-            liveness: liveanalysis.analyze(),
+            liveness,
             freeowned: vec![5, 6, 7, 28],
             used_register: vec![],
             registers: HashMap::new(),
@@ -112,7 +119,8 @@ impl LinearAllocator {
                 .iter()
                 .map(|x| x.iter().map(|_| vec![]).collect())
                 .collect(),
-            stacksize: 0,
+            used_ir,
+            stacksize,
         };
         res.allocate(function);
         res
@@ -121,14 +129,18 @@ impl LinearAllocator {
     fn allocate(&mut self, prog: &middleend::ir::Function) {
         for block in prog.blocks.iter() {
             for inst in block.iter() {
-                match &inst.data {
-                    middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
-                        self.registers
-                            .insert(inst.id, ValueCell::Value(self.stacksize));
-                        self.stacksize += size;
+                if self.used_ir.contains(&Rd::Ir(inst.id)) {
+                    match &inst.data {
+                        middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
+                            self.registers
+                                .insert(inst.id, ValueCell::Value(self.stacksize));
+                            self.stacksize += size;
+                        }
+                        _ => self.allocate_reg(inst.id, &prog.blocks),
                     }
-                    _ => self.allocate_reg(inst.id, &prog.blocks),
                 }
+                let (_, bb_index, inst_index) = inst.id;
+                self.used[bb_index][inst_index] = self.used_register.clone();
                 self.release(inst.id);
             }
         }
@@ -144,8 +156,6 @@ impl LinearAllocator {
             self.used_register.push(reg_name);
             let register = ValueCell::Register(reg_name);
             self.registers.insert(reg, register);
-            let (_, bb_index, inst_index) = reg;
-            self.used[bb_index][inst_index] = self.used_register.clone();
             self.create_release(reg, blocks);
         }
     }
