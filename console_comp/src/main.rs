@@ -6,10 +6,9 @@ use std::{
 use backend::{asm_compile, emit::emit_assembly};
 use frontend::parse;
 use middleend::{
-    analysis::{analyze_program, LiveRegisterAnalysis},
     inst::Register,
     ir_compile::ir_compile,
-    ir_interpret::run,
+    ir_interpret::run, analysis::{live::LiveRegisterAnalysis, analysis::analyze_program},
 };
 
 fn printlive(result: HashMap<String, Vec<Vec<HashSet<Register>>>>) {
