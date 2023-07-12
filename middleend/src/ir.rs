@@ -171,6 +171,7 @@ impl FunctionBuilder {
         self.act_bb
     }
 
+    /// needed for dataflow analysis
     pub fn set_predecesors(&mut self, to: BBIndex, preds: &[BBIndex]) {
         for pred in preds {
             self.blocks[to].add_predecesor(*pred)
