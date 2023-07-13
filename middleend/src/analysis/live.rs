@@ -1,13 +1,17 @@
 use std::collections::HashSet;
 
-use crate::{ir::Function, inst::{Register, InstUUID, InstructionType}};
+use crate::{
+    inst::InstructionType,
+    ir::{Function, Instruction, Register},
+};
 
-use super::{lattice::{PowerSetLattice, Lattice}, dataflow::{DataFlowAnalysis, DataflowType}};
-
-
+use super::{
+    dataflow::{DataFlowAnalysis, DataflowType},
+    lattice::{Lattice, PowerSetLattice},
+};
 
 pub struct LiveRegisterAnalysis<'a> {
-    function: &'a Function,
+    function: &'a Function<'a>,
     inner_lattice: PowerSetLattice<Register>,
 }
 
@@ -44,12 +48,10 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         DataflowType::Backwards
     }
 
-    fn transfer_fun(&self, inst: InstUUID, state: HashSet<Register>) -> HashSet<Register> {
+    fn transfer_fun(&self, inst: &Instruction, state: HashSet<Register>) -> HashSet<Register> {
         use InstructionType::*;
 
         let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
         match inst.data {
             Ret(_) | Exit(_) => self.inner_lattice.bot(),
             Retr(_) => HashSet::from_iter(inst.data.get_regs().into_iter()),
@@ -68,4 +70,3 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         self.function = function;
     }
 }
-

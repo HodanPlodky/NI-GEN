@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod builder;
 pub mod inst;
 pub mod ir;
 pub mod ir_compile;

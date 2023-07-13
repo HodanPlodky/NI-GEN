@@ -8,15 +8,16 @@ use frontend::{
 };
 
 use crate::{
+    builder::{FunctionBuilder, IrBuilder, IrBuilderError},
     inst::{
-        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator, TerminatorBranch,
+        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegs, SymRegs, Terminator, TerminatorBranch,
         TerminatorJump, TerminatorReg,
     },
-    ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
+    ir::{IrProgram, RegType, Register, Symbol},
 };
 
-pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
-    let mut compiler = IrCompiler::default();
+pub fn ir_compile<'a>(program: Program) -> Result<IrProgram<'a>, IrCompErr> {
+    let mut compiler : IrCompiler<'a> = IrCompiler::default();
     compiler.compile(program)
 }
 
@@ -36,12 +37,12 @@ impl From<IrBuilderError> for IrCompErr {
     }
 }
 
-struct IrCompiler {
+struct IrCompiler<'a> {
     env: Vec<Env>,
-    ir_builder: IrBuilder,
+    ir_builder: IrBuilder<'a>,
 }
 
-impl Default for IrCompiler {
+impl Default for IrCompiler<'_> {
     fn default() -> Self {
         Self {
             env: vec![HashMap::new()],
@@ -60,8 +61,11 @@ impl From<TypeDef> for RegType {
     }
 }
 
-impl IrCompiler {
-    fn compile(&mut self, prog: Program) -> Result<IrProgram, IrCompErr> {
+// For easier writing
+type I = InstructionType;
+
+impl<'a> IrCompiler<'a> {
+    fn compile(&mut self, prog: Program) -> Result<IrProgram<'a>, IrCompErr> {
         for top in prog.items {
             match top {
                 TopLevel::Function(fn_def) => self.function(fn_def)?,
@@ -140,7 +144,7 @@ impl IrCompiler {
                 }
                 match &target.value {
                     ExprType::Ident(name) if self.get_addreg(name.clone()).is_err() => Ok(f_b.add(
-                        I::CallDirect(SymRegs(name.clone(), args_regs)),
+                        I::CallDirect(SymRegs(Symbol(name.clone()), args_regs)),
                         expr.get_type().into(),
                     )),
                     _ => {
@@ -348,7 +352,7 @@ impl IrCompiler {
 
     fn function(&mut self, func: FnDef) -> Result<(), IrCompErr> {
         if let Some(body) = &func.body {
-            let mut fn_b = FunctionBuilder::new(
+            let mut fn_b = self.ir_builder.create_fnbuild(
                 func.header.params.len() as u64,
                 func.header.ret_type.clone().into(),
             );

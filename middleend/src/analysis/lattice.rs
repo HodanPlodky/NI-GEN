@@ -47,7 +47,7 @@ pub struct FunctionLattice<'a, A>
 where
     A: Clone,
 {
-    function: &'a Function,
+    function: &'a Function<'a>,
     inner_lattice: &'a dyn Lattice<A>,
 }
 

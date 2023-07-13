@@ -2,15 +2,15 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     inst::{
-        BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,
-        Register, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+        ImmC, ImmI, InstructionType, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump,
+        TerminatorReg,
     },
-    ir::{Function, IrProgram},
+    ir::{BBIndex, BasicBlock, Function, Instruction, IrProgram, RegType, Register, Symbol, InstUUID},
 };
 
 #[derive(Debug)]
 pub enum InterpretError {
-    VoidRegister(Instruction),
+    VoidRegister(InstUUID),
     InvalidAddress(Value),
     OutOfBoundRead(Value),
     InvalidCond(Value),
@@ -170,17 +170,17 @@ impl Memory {
     }
 }
 
-struct Interpret {
+struct Interpret<'a> {
     mem: Memory,
     globals: Env,
     locals: Vec<Env>,
     args: Vec<Args>,
-    program: IrProgram,
+    program: IrProgram<'a>,
     rev_val: Option<Value>,
 }
 
-impl Interpret {
-    fn new(program: IrProgram, stack_size: usize) -> Self {
+impl<'a> Interpret<'a> {
+    fn new(program: IrProgram<'a>, stack_size: usize) -> Self {
         Self {
             mem: Memory::new(stack_size),
             globals: HashMap::new(),
@@ -245,7 +245,7 @@ impl Interpret {
         loop {
             let index = self.run_basicblock(act)?;
             if let Some(i) = index {
-                act = &func.blocks[i];
+                act = &func.get_bb(i);
             } else {
                 break;
             }
@@ -299,6 +299,7 @@ impl Interpret {
         let mut next = None;
         let mut terminated = false;
         for inst in bb.instruction.iter() {
+            let inst = inst.clone();
             if terminated {
                 return Err(InterpretError::BasicBlockConti);
             }
@@ -308,7 +309,7 @@ impl Interpret {
                 InstructionType::Ld(Reg(reg)) => {
                     let val = self.get(*reg)?;
                     let val = match inst.reg_type {
-                        RegType::Void => Err(InterpretError::VoidRegister(inst.clone())),
+                        RegType::Void => Err(InterpretError::VoidRegister(inst.id)),
                         RegType::Int => self.mem.read_int(val),
                         RegType::Char => self.mem.read_char(val),
                     }?;
@@ -384,7 +385,8 @@ impl Interpret {
                     for reg in regs {
                         vals.push(self.get(*reg)?);
                     }
-                    let func = self.program.funcs.get(sym).unwrap();
+                    let Symbol(name) = sym;
+                    let func = self.program.funcs.get(name).unwrap();
                     let res = self.run_func(func.clone(), vals)?;
                     match res {
                         Some(value) => self.set(inst.id, value)?,
@@ -431,17 +433,19 @@ impl Interpret {
 #[cfg(test)]
 mod tests {
     use crate::{
+        builder::IrBuilder,
         inst::Terminator,
-        ir::{FunctionBuilder, IrBuilder, I},
     };
 
     use super::*;
+
+    type I = InstructionType;
 
     #[test]
     fn basic_interpret_test() {
         let mut builder = IrBuilder::default();
         builder.add(I::Ret(Terminator), RegType::Void);
-        let mut fn_b = FunctionBuilder::new(0, RegType::Void);
+        let mut fn_b = builder.create_fnbuild(0, RegType::Void);
         let reg = fn_b.add(I::Ldi(ImmI(5)), RegType::Int);
         fn_b.add(I::Print(Reg(reg)), RegType::Void);
         fn_b.add(I::Ret(Terminator), RegType::Void);

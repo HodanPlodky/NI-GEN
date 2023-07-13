@@ -1,6 +1,6 @@
-use crate::{ir::Function, inst::{InstUUID, BasicBlock}};
+use crate::ir::{BBIndex, BasicBlock, Function, InstIndex, Instruction};
 
-use super::lattice::{Lattice, FunctionLattice};
+use super::lattice::{FunctionLattice, Lattice};
 
 pub enum DataflowType {
     Forwards,
@@ -25,44 +25,52 @@ where
     fn direction(&self) -> DataflowType;
 
     /// implementation of constrains
-    fn transfer_fun(&self, inst: InstUUID, state: A) -> A;
+    fn transfer_fun(&self, inst: &Instruction, state: A) -> A;
 
-    fn before(&self, inst: InstUUID) -> Vec<InstUUID> {
-        let (g, bb_index, insts_index) = inst;
+    /// depending on which type of analysis (forward/backward) previous instruction
+    fn before(&self, inst: InstIndex) -> Vec<InstIndex> {
+        let InstIndex(g, bb_index, insts_index) = inst;
         let func = self.function();
         match self.direction() {
-            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == insts_index => func
-                .blocks[bb_index]
+            DataflowType::Backwards if func.get_bb(bb_index).len() - 1 == insts_index => func
+                .get_bb(bb_index)
                 .succ()
                 .into_iter()
-                .map(|x| (false, x, 0))
+                .map(|x| InstIndex(false, x, 0))
                 .collect(),
             DataflowType::Backwards => {
-                vec![(g, bb_index, insts_index + 1)]
+                vec![InstIndex(g, bb_index, insts_index + 1)]
             }
-            DataflowType::Forwards if insts_index == 0 => func.blocks[bb_index]
+            DataflowType::Forwards if insts_index == 0 => func
+                .get_bb(bb_index)
                 .pred()
                 .into_iter()
-                .map(|x| (false, x, func.blocks[x].len()))
+                .map(|x| InstIndex(false, x, func.get_bb(x).len()))
                 .collect(),
-            DataflowType::Forwards => vec![(g, bb_index, insts_index - 1)],
+            DataflowType::Forwards => vec![InstIndex(g, bb_index, insts_index - 1)],
         }
     }
 
-    fn join(&self, inst: InstUUID, state: &Vec<Vec<A>>) -> A {
+    fn join(&self, inst: InstIndex, state: &Vec<Vec<A>>) -> A {
         let prev = self
             .before(inst)
             .into_iter()
-            .map(|(_, bb, inst)| state[bb][inst].clone());
+            .map(|InstIndex(_, bb, inst)| state[bb.index()][inst].clone());
         prev.fold(self.inner_lattice().bot(), |acc, x| {
             self.inner_lattice().lub(&acc, &x)
         })
     }
 
-    fn fun_block(&self, state: &Vec<Vec<A>>, block: &BasicBlock) -> Vec<A> {
+    fn fun_block(&self, state: &Vec<Vec<A>>, block: &BasicBlock, bb_index: BBIndex) -> Vec<A> {
         block
             .iter()
-            .map(|inst| self.transfer_fun(inst.id, self.join(inst.id, state)))
+            .zip(0..)
+            .map(|(inst, index)| {
+                self.transfer_fun(
+                    inst.clone(),
+                    self.join(InstIndex(false, bb_index, index), state),
+                )
+            })
             .collect()
     }
 
@@ -72,7 +80,8 @@ where
         let func = self.function();
         func.blocks
             .iter()
-            .map(|block| self.fun_block(&state, block))
+            .zip(0..)
+            .map(|(block, index)| self.fun_block(&state, block, BBIndex(index)))
             .collect()
     }
 

@@ -82,7 +82,7 @@ impl<'a> AsmFunctionBuilder<'a> {
         tmp_regs: &mut Vec<usize>,
     ) -> (Vec<AsmInstruction>, Rd, Vec<AsmInstruction>) {
         match reg {
-            Rd::Ir(ir_reg) => match reg_allocator.get_location(ir_reg) {
+            Rd::Ir(ir_reg) => match reg_allocator.get_location() {
                 ValueCell::Register(reg) => (vec![], Rd::Arch(reg), vec![]),
                 ValueCell::StackOffset(offset) => {
                     let target = tmp_regs.pop().unwrap().clone();
@@ -137,7 +137,7 @@ impl<'a> AsmFunctionBuilder<'a> {
             | AsmInstruction::Sw(_, rs, offset)
             | AsmInstruction::Sd(_, rs, offset) => {
                 if let Rd::Ir(ir_rs) = rs {
-                    match reg_allocator.get_location(ir_rs.clone()) {
+                    match reg_allocator.get_location() {
                         ValueCell::Value(value) => {
                             *rs = Rd::Sp;
                             *offset += value;
