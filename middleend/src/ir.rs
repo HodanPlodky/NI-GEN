@@ -41,7 +41,6 @@ pub struct InstUUID(pub usize);
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct InstIndex(pub bool, pub BBIndex, pub usize);
 
-
 pub type Register = InstUUID;
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
@@ -84,38 +83,81 @@ pub enum RegType {
     Char,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct BasicBlock<'a> {
-    predecesors: Vec<BBIndex>,
-    pub instruction: Vec<&'a Instruction>,
+#[derive(Clone, Debug)]
+pub struct InstructionStore {
+    instructions: Vec<Instruction>,
 }
 
-impl Default for BasicBlock<'_> {
+impl Default for InstructionStore {
     fn default() -> Self {
         Self {
-            predecesors: vec![],
-            instruction: vec![],
+            instructions: vec![],
         }
     }
+}
+
+impl InstructionStore {
+    pub fn new(instructions: Vec<Instruction>) -> Self {
+        Self { instructions }
+    }
+
+    pub fn get_inst(&self, inst: InstUUID) -> Option<&Instruction> {
+        let InstUUID(index) = inst;
+        self.instructions.get(index)
+    }
+
+    pub fn create_id(&self) -> InstUUID {
+        InstUUID(self.instructions.len())
+    }
+
+    pub fn add_instruction(&mut self, inst: Instruction) -> InstUUID {
+        self.instructions.push(inst);
+        InstUUID(self.instructions.len() - 1)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicBlock<'a> {
+    store: &'a InstructionStore,
+    predecesors: Vec<BBIndex>,
+    pub instruction: Vec<InstUUID>,
 }
 
 impl<'a> Deref for BasicBlock<'a> {
     type Target = Vec<&'a Instruction>;
 
     fn deref(&self) -> &Self::Target {
-        &self.instruction
+        &self
+            .instruction
+            .iter()
+            .map(|x| self.store.get_inst(*x).unwrap())
+            .collect()
     }
 }
 
-impl<'a> DerefMut for BasicBlock<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.instruction
+impl PartialEq for BasicBlock<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.predecesors == other.predecesors && self.instruction == other.instruction
     }
 }
 
-impl BasicBlock<'_> {
+impl Eq for BasicBlock<'_> {}
+
+impl<'a> BasicBlock<'a> {
+    pub fn new(store: &'a InstructionStore) -> Self {
+        Self {
+            store,
+            predecesors: vec![],
+            instruction: vec![],
+        }
+    }
+
     pub fn add_predecesor(&mut self, predecesor: BBIndex) {
         self.predecesors.push(predecesor)
+    }
+
+    pub fn push(&mut self, inst : InstUUID) {
+        self.instruction.push(inst)
     }
 
     pub fn pred(&self) -> Vec<BBIndex> {
@@ -198,7 +240,7 @@ impl DerefMut for Function<'_> {
 pub struct IrProgram<'a> {
     pub glob: Function<'a>,
     pub funcs: HashMap<String, Function<'a>>,
-    insts: Vec<Instruction>,
+    pub store: InstructionStore,
 }
 
 impl Default for IrProgram<'_> {
@@ -211,7 +253,7 @@ impl Default for IrProgram<'_> {
                 blocks: vec![],
             },
             funcs: HashMap::new(),
-            insts: vec![],
+            store: InstructionStore::default(),
         }
     }
 }

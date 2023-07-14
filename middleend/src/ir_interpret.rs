@@ -298,7 +298,7 @@ impl<'a> Interpret<'a> {
     fn run_basicblock(&mut self, bb: &BasicBlock) -> Result<Option<BBIndex>, InterpretError> {
         let mut next = None;
         let mut terminated = false;
-        for inst in bb.instruction.iter() {
+        for inst in bb.iter() {
             let inst = inst.clone();
             if terminated {
                 return Err(InterpretError::BasicBlockConti);

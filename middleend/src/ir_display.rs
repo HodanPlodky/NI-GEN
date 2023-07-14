@@ -116,7 +116,7 @@ impl Display for Instruction {
 
 impl Display for BasicBlock<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for i in self.instruction.iter() {
+        for i in self.iter() {
             writeln!(f, "\t{}", i)?;
         }
         Ok(())
