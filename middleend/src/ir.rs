@@ -32,7 +32,6 @@ impl Display for BBIndex {
 }
 
 /// Id of the instruction
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct InstUUID(pub usize);
 
@@ -41,6 +40,7 @@ pub struct InstUUID(pub usize);
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct InstIndex(pub bool, pub BBIndex, pub usize);
 
+/// Same as InstUUID since this is SSA
 pub type Register = InstUUID;
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
@@ -116,37 +116,25 @@ impl InstructionStore {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct BasicBlock<'a> {
-    store: &'a InstructionStore,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BasicBlock {
     predecesors: Vec<BBIndex>,
     pub instruction: Vec<InstUUID>,
 }
 
-impl<'a> Deref for BasicBlock<'a> {
-    type Target = Vec<&'a Instruction>;
+impl Deref for BasicBlock {
+    type Target = Vec<InstUUID>;
 
     fn deref(&self) -> &Self::Target {
-        &self
-            .instruction
+        &self.instruction
             .iter()
             .map(|x| self.store.get_inst(*x).unwrap())
-            .collect()
     }
 }
 
-impl PartialEq for BasicBlock<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.predecesors == other.predecesors && self.instruction == other.instruction
-    }
-}
-
-impl Eq for BasicBlock<'_> {}
-
-impl<'a> BasicBlock<'a> {
-    pub fn new(store: &'a InstructionStore) -> Self {
+impl BasicBlock {
+    pub fn new() -> Self {
         Self {
-            store,
             predecesors: vec![],
             instruction: vec![],
         }
@@ -156,7 +144,7 @@ impl<'a> BasicBlock<'a> {
         self.predecesors.push(predecesor)
     }
 
-    pub fn push(&mut self, inst : InstUUID) {
+    pub fn push(&mut self, inst: InstUUID) {
         self.instruction.push(inst)
     }
 
@@ -194,14 +182,14 @@ impl From<Instruction> for Register {
     }
 }
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Function<'a> {
+pub struct Function {
     pub name: String,
     pub arg_count: u64,
     pub ret_type: RegType,
-    pub blocks: Vec<BasicBlock<'a>>,
+    pub blocks: Vec<BasicBlock>,
 }
 
-impl Function<'_> {
+impl Function {
     pub fn start(&self) -> &BasicBlock {
         &self.blocks[0]
     }
@@ -211,7 +199,7 @@ impl Function<'_> {
     }
 }
 
-impl Default for Function<'_> {
+impl Default for Function {
     fn default() -> Self {
         Function {
             name: "global".to_string(),
@@ -222,28 +210,28 @@ impl Default for Function<'_> {
     }
 }
 
-impl<'a> Deref for Function<'a> {
-    type Target = Vec<BasicBlock<'a>>;
+impl Deref for Function {
+    type Target = Vec<BasicBlock>;
 
     fn deref(&self) -> &Self::Target {
         &self.blocks
     }
 }
 
-impl DerefMut for Function<'_> {
+impl DerefMut for Function {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.blocks
     }
 }
 
 #[derive(Debug)]
-pub struct IrProgram<'a> {
-    pub glob: Function<'a>,
-    pub funcs: HashMap<String, Function<'a>>,
+pub struct IrProgram {
+    pub glob: Function,
+    pub funcs: HashMap<String, Function>,
     pub store: InstructionStore,
 }
 
-impl Default for IrProgram<'_> {
+impl Default for IrProgram {
     fn default() -> Self {
         Self {
             glob: Function {

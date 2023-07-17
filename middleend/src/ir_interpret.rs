@@ -170,17 +170,17 @@ impl Memory {
     }
 }
 
-struct Interpret<'a> {
+struct Interpret {
     mem: Memory,
     globals: Env,
     locals: Vec<Env>,
     args: Vec<Args>,
-    program: IrProgram<'a>,
+    program: IrProgram,
     rev_val: Option<Value>,
 }
 
-impl<'a> Interpret<'a> {
-    fn new(program: IrProgram<'a>, stack_size: usize) -> Self {
+impl Interpret {
+    fn new(program: IrProgram, stack_size: usize) -> Self {
         Self {
             mem: Memory::new(stack_size),
             globals: HashMap::new(),

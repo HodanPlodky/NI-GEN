@@ -5,7 +5,7 @@ use crate::{
         ImmC, ImmI, InstructionType, Reg, RegReg, RegRegs, SymRegs, TerminatorBranch,
         TerminatorJump, TerminatorReg,
     },
-    ir::{Function, IrProgram, RegType, Register, Instruction, BasicBlock},
+    ir::{BasicBlock, Function, Instruction, IrProgram, RegType, Register},
 };
 
 fn reg_view(reg: Register) -> String {
@@ -114,7 +114,7 @@ impl Display for Instruction {
     }
 }
 
-impl Display for BasicBlock<'_> {
+impl Display for BasicBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for i in self.iter() {
             writeln!(f, "\t{}", i)?;
@@ -123,7 +123,7 @@ impl Display for BasicBlock<'_> {
     }
 }
 
-impl Display for Function<'_> {
+impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
@@ -138,7 +138,7 @@ impl Display for Function<'_> {
     }
 }
 
-impl Display for IrProgram<'_> {
+impl Display for IrProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "global:")?;
         write!(f, "{}", self.glob)?;

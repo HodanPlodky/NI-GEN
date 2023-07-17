@@ -25,8 +25,8 @@ impl Default for BuildContext {
 
 #[derive(Debug)]
 pub struct IrBuilder<'a> {
-    global: Function<'a>,
-    prog: IrProgram<'a>,
+    global: Function,
+    prog: IrProgram,
 }
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl<'a : 'c, 'c> IrBuilder<'a> {
         }
     }
 
-    pub fn add_fn(&mut self, func: Function<'a>) -> Result<(), IrBuilderError> {
+    pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {
         if self.prog.funcs.contains_key(&func.name.to_string()) {
             return Err(IrBuilderError::FuncRedef);
         }
@@ -93,7 +93,7 @@ impl<'a : 'c, 'c> IrBuilder<'a> {
         todo!()
     }
 
-    pub fn create(self, context : BuildContext) -> IrProgram<'a> {
+    pub fn create(self, context : BuildContext) -> IrProgram {
         let mut tmp = self;
         tmp.prog.glob = std::mem::take(&mut tmp.global);
         tmp.prog.store = context.store.clone();
@@ -106,7 +106,7 @@ pub struct FunctionBuilder<'a> {
     arg_count: u64,
     ret_type: RegType,
     act_bb: BBIndex,
-    blocks: Vec<BasicBlock<'a>>,
+    blocks: Vec<BasicBlock>,
 }
 
 impl<'a> FunctionBuilder<'a> {
@@ -149,7 +149,7 @@ impl<'a> FunctionBuilder<'a> {
         self.blocks[self.act_bb.index()].terminated()
     }
 
-    pub fn create(self, name: &str) -> Function<'a> {
+    pub fn create(self, name: &str) -> Function {
         Function {
             name: name.to_string(),
             arg_count: self.arg_count,

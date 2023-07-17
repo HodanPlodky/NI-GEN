@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct LiveRegisterAnalysis<'a> {
-    function: &'a Function<'a>,
+    function: &'a Function,
     inner_lattice: PowerSetLattice<Register>,
 }
 

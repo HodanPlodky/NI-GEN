@@ -16,9 +16,9 @@ use crate::{
     ir::{IrProgram, RegType, Register, Symbol},
 };
 
-pub fn ir_compile<'b>(program: Program) -> Result<IrProgram<'b>, IrCompErr> {
+pub fn ir_compile<'b>(program: Program) -> Result<IrProgram, IrCompErr> {
     let context = BuildContext::default();
-    let compiler: IrCompiler<'b> = IrCompiler::new();
+    let compiler: IrCompiler = IrCompiler::new();
     compiler.compile(program, context)
 }
 
@@ -38,9 +38,9 @@ impl From<IrBuilderError> for IrCompErr {
     }
 }
 
-struct IrCompiler<'a> {
+struct IrCompiler {
     env: Vec<Env>,
-    ir_builder: IrBuilder<'a>,
+    ir_builder: IrBuilder,
 }
 
 impl From<TypeDef> for RegType {
@@ -56,7 +56,7 @@ impl From<TypeDef> for RegType {
 // For easier writing
 type I = InstructionType;
 
-impl<'a> IrCompiler<'a> {
+impl IrCompiler {
     fn new() -> Self {
         Self {
             env: vec![HashMap::new()],
@@ -64,7 +64,7 @@ impl<'a> IrCompiler<'a> {
         }
     }
 
-    fn compile(self, prog: Program, context : BuildContext) -> Result<IrProgram<'a>, IrCompErr> {
+    fn compile(self, prog: Program, context : BuildContext) -> Result<IrProgram, IrCompErr> {
         let mut builder = self;
         for top in prog.items {
             match top {
@@ -349,7 +349,7 @@ impl<'a> IrCompiler<'a> {
         Ok(())
     }
 
-    fn function(&mut self, func: FnDef, context: &'a BuildContext) -> Result<(), IrCompErr> {
+    fn function(&mut self, func: FnDef, context: &BuildContext) -> Result<(), IrCompErr> {
         if let Some(body) = &func.body {
             let mut fn_b = self.ir_builder.create_fnbuild(
                 func.header.params.len() as u64,
