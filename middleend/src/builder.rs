@@ -25,24 +25,8 @@ impl Default for BuildContext {
 
 #[derive(Debug)]
 pub struct IrBuilder<'a> {
-    context: BuildContext,
     global: Function<'a>,
     prog: IrProgram<'a>,
-}
-
-impl Default for IrBuilder<'_> {
-    fn default() -> Self {
-        Self {
-            context : BuildContext::default(),
-            global: Function {
-                name: "global".to_string(),
-                arg_count: 0,
-                ret_type: RegType::Void,
-                blocks: vec![],
-            },
-            prog: IrProgram::default(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -56,18 +40,35 @@ pub enum IrBuilderError {
     FuncRedef,
 }
 
-impl<'a> IrBuilder<'a> {
+impl<'a : 'c, 'c> IrBuilder<'a> {
+    pub fn new() -> Self {
+        Self {
+            global: Function {
+                name: "global".to_string(),
+                arg_count: 0,
+                ret_type: RegType::Void,
+                blocks: vec![],
+            },
+            prog: IrProgram::default(),
+        }
+    }
+
     fn get_id(&self) -> InstUUID {
         self.prog.store.create_id()
     }
 
-    pub fn create_fnbuild(&'a self, arg_count: u64, ret_type: RegType) -> FunctionBuilder<'a> {
+    pub fn create_fnbuild(
+        &self,
+        arg_count: u64,
+        ret_type: RegType,
+        context: &'c BuildContext,
+    ) -> FunctionBuilder<'c> {
         FunctionBuilder {
             arg_count,
             ret_type,
             act_bb: BBIndex(0),
-            blocks: vec![BasicBlock::new(&self.prog.store)],
-            store: &self.prog.store,
+            blocks: vec![BasicBlock::new(&context.store)],
+            context,
         }
     }
 
@@ -92,15 +93,16 @@ impl<'a> IrBuilder<'a> {
         todo!()
     }
 
-    pub fn create(self) -> IrProgram<'a> {
+    pub fn create(self, context : BuildContext) -> IrProgram<'a> {
         let mut tmp = self;
         tmp.prog.glob = std::mem::take(&mut tmp.global);
+        tmp.prog.store = context.store.clone();
         tmp.prog
     }
 }
 
 pub struct FunctionBuilder<'a> {
-    store: &'a InstructionStore,
+    context: &'a BuildContext,
     arg_count: u64,
     ret_type: RegType,
     act_bb: BBIndex,
@@ -109,11 +111,11 @@ pub struct FunctionBuilder<'a> {
 
 impl<'a> FunctionBuilder<'a> {
     fn get_id(&self) -> InstUUID {
-        self.store.create_id()
+        self.context.store.create_id()
     }
 
     pub fn create_bb(&mut self) -> BBIndex {
-        self.blocks.push(BasicBlock::new(self.store));
+        self.blocks.push(BasicBlock::new(&self.context.store));
         BBIndex(self.blocks.len() - 1)
     }
 
@@ -121,7 +123,7 @@ impl<'a> FunctionBuilder<'a> {
         let id = self.get_id();
         let inst = Instruction::new(id, reg_type, None, inst);
         let id = unsafe {
-            let tmp = self.store as *const InstructionStore as *mut InstructionStore;
+            let tmp = &self.context.store as *const InstructionStore as *mut InstructionStore;
             tmp.as_mut().unwrap().add_instruction(inst)
         };
         self.blocks[self.act_bb.index()].push(id);
@@ -147,7 +149,7 @@ impl<'a> FunctionBuilder<'a> {
         self.blocks[self.act_bb.index()].terminated()
     }
 
-    pub fn create(self, name: &'a str) -> Function {
+    pub fn create(self, name: &str) -> Function<'a> {
         Function {
             name: name.to_string(),
             arg_count: self.arg_count,
@@ -165,11 +167,12 @@ mod tests {
 
     #[test]
     fn correct_builder_api() {
-        let mut builder = IrBuilder::default();
+        let context = BuildContext::default();
+        let mut builder = IrBuilder::new(&context);
         let reg: Register = builder.add(InstructionType::Ldi(ImmI(5)), RegType::Int);
         builder.add(InstructionType::Ret(Terminator), RegType::Void);
         let func = {
-            let mut fn_b = builder.create_fnbuild(0, RegType::Void);
+            let mut fn_b = builder.create_fnbuild(0, RegType::Void, &context);
             let bi = fn_b.create_bb();
             fn_b.add(InstructionType::Jmp(TerminatorJump(bi)), RegType::Void);
             fn_b.set_bb(bi);

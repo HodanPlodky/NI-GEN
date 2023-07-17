@@ -443,7 +443,8 @@ mod tests {
 
     #[test]
     fn basic_interpret_test() {
-        let mut builder = IrBuilder::default();
+        let context = crate::builder::BuildContext::default();
+        let mut builder = IrBuilder::new(&context);
         builder.add(I::Ret(Terminator), RegType::Void);
         let mut fn_b = builder.create_fnbuild(0, RegType::Void);
         let reg = fn_b.add(I::Ldi(ImmI(5)), RegType::Int);

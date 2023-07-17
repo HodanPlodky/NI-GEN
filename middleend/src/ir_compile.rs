@@ -8,7 +8,7 @@ use frontend::{
 };
 
 use crate::{
-    builder::{FunctionBuilder, IrBuilder, IrBuilderError},
+    builder::{BuildContext, FunctionBuilder, IrBuilder, IrBuilderError},
     inst::{
         ImmC, ImmI, InstructionType, Reg, RegReg, RegRegs, SymRegs, Terminator, TerminatorBranch,
         TerminatorJump, TerminatorReg,
@@ -16,9 +16,10 @@ use crate::{
     ir::{IrProgram, RegType, Register, Symbol},
 };
 
-pub fn ir_compile<'a>(program: Program) -> Result<IrProgram<'a>, IrCompErr> {
-    let mut compiler : IrCompiler<'a> = IrCompiler::default();
-    compiler.compile(program)
+pub fn ir_compile<'b>(program: Program) -> Result<IrProgram<'b>, IrCompErr> {
+    let context = BuildContext::default();
+    let compiler: IrCompiler<'b> = IrCompiler::new();
+    compiler.compile(program, context)
 }
 
 // name to register with address
@@ -42,15 +43,6 @@ struct IrCompiler<'a> {
     ir_builder: IrBuilder<'a>,
 }
 
-impl Default for IrCompiler<'_> {
-    fn default() -> Self {
-        Self {
-            env: vec![HashMap::new()],
-            ir_builder: IrBuilder::default(),
-        }
-    }
-}
-
 impl From<TypeDef> for RegType {
     fn from(t: TypeDef) -> Self {
         match t {
@@ -65,21 +57,28 @@ impl From<TypeDef> for RegType {
 type I = InstructionType;
 
 impl<'a> IrCompiler<'a> {
-    fn compile(&mut self, prog: Program) -> Result<IrProgram<'a>, IrCompErr> {
+    fn new() -> Self {
+        Self {
+            env: vec![HashMap::new()],
+            ir_builder: IrBuilder::new(),
+        }
+    }
+
+    fn compile(self, prog: Program, context : BuildContext) -> Result<IrProgram<'a>, IrCompErr> {
+        let mut builder = self;
         for top in prog.items {
             match top {
-                TopLevel::Function(fn_def) => self.function(fn_def)?,
+                TopLevel::Function(fn_def) => builder.function(fn_def, &context)?,
                 TopLevel::Var(_) => todo!(),
                 TopLevel::Structure(_) => todo!(),
             }
         }
-        self.ir_builder.add(I::Exit(Terminator), RegType::Void);
+        builder.ir_builder.add(I::Exit(Terminator), RegType::Void);
 
-        let builder = std::mem::take(&mut self.ir_builder);
-        Ok(builder.create())
+        Ok(builder.ir_builder.create(context))
     }
 
-    fn compile_val(&mut self, val: &Val, f_b: &mut FunctionBuilder) -> Result<Register, IrCompErr> {
+    fn compile_val(&self, val: &Val, f_b: &mut FunctionBuilder) -> Result<Register, IrCompErr> {
         match val {
             Val::Integer(num) => Ok(f_b.add(I::Ldi(ImmI(*num)), RegType::Int)),
             Val::Char(c) => Ok(f_b.add(I::Ldc(ImmC(*c)), RegType::Char)),
@@ -87,7 +86,7 @@ impl<'a> IrCompiler<'a> {
     }
 
     fn compile_expr(
-        &mut self,
+        &self,
         expr: &Expr,
         f_b: &mut FunctionBuilder,
     ) -> Result<Register, IrCompErr> {
@@ -167,7 +166,7 @@ impl<'a> IrCompiler<'a> {
         }
     }
 
-    fn get_addreg(&mut self, name: String) -> Result<Register, IrCompErr> {
+    fn get_addreg(&self, name: String) -> Result<Register, IrCompErr> {
         for i in (0..self.env.len()).rev() {
             if let Some(reg) = self.env[i].get(&name) {
                 return Ok(*reg);
@@ -189,7 +188,7 @@ impl<'a> IrCompiler<'a> {
     }
 
     fn compile_assign(
-        &mut self,
+        &self,
         store: &Expr,
         expr: &Expr,
         f_b: &mut FunctionBuilder,
@@ -350,11 +349,12 @@ impl<'a> IrCompiler<'a> {
         Ok(())
     }
 
-    fn function(&mut self, func: FnDef) -> Result<(), IrCompErr> {
+    fn function(&mut self, func: FnDef, context: &'a BuildContext) -> Result<(), IrCompErr> {
         if let Some(body) = &func.body {
             let mut fn_b = self.ir_builder.create_fnbuild(
                 func.header.params.len() as u64,
                 func.header.ret_type.clone().into(),
+                context,
             );
 
             for index in 0..func.header.params.len() {
@@ -372,7 +372,8 @@ impl<'a> IrCompiler<'a> {
             if !fn_b.terminated() {
                 fn_b.add(I::Ret(Terminator), RegType::Void);
             }
-            self.ir_builder.add_fn(fn_b.create(&func.header.name))?;
+            let func = fn_b.create(&func.header.name);
+            self.ir_builder.add_fn(func)?;
         }
         Ok(())
     }
