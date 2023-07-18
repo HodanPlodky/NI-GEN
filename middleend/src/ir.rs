@@ -127,8 +127,6 @@ impl Deref for BasicBlock {
 
     fn deref(&self) -> &Self::Target {
         &self.instruction
-            .iter()
-            .map(|x| self.store.get_inst(*x).unwrap())
     }
 }
 

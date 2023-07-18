@@ -24,7 +24,7 @@ impl Default for BuildContext {
 }
 
 #[derive(Debug)]
-pub struct IrBuilder<'a> {
+pub struct IrBuilder {
     global: Function,
     prog: IrProgram,
 }
@@ -40,7 +40,7 @@ pub enum IrBuilderError {
     FuncRedef,
 }
 
-impl<'a : 'c, 'c> IrBuilder<'a> {
+impl IrBuilder {
     pub fn new() -> Self {
         Self {
             global: Function {
