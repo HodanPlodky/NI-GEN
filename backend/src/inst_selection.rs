@@ -1,5 +1,6 @@
-use middleend::inst::{
-    ImmI, Instruction, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+use middleend::{
+    inst::{ImmI, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg},
+    ir::Instruction,
 };
 
 use crate::{insts::AsmInstruction, AsmFunctionBuilder};
@@ -55,7 +56,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             if regs.len() >= 8 {
                 todo!();
             }
-            // TODO implement working solution for stack passed arguments 
+            // TODO implement working solution for stack passed arguments
             for i in 0..regs.len() {
                 builder.add_instruction(AsmInstruction::Addi(ArgReg(i as u8), Ir(regs[i]), 0));
             }
@@ -65,8 +66,8 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), ArgReg(0), 0));
         }
         &middleend::inst::InstructionType::Arg(ImmI(imm)) => {
-            // TODO implement working solution for stack passed arguments 
-            builder.add_instruction(AsmInstruction::Addi(Ir(reg), ArgReg(imm as u8),0));
+            // TODO implement working solution for stack passed arguments
+            builder.add_instruction(AsmInstruction::Addi(Ir(reg), ArgReg(imm as u8), 0));
         }
         &middleend::inst::InstructionType::Ret(_) => builder.add_instruction(AsmInstruction::Ret),
         &middleend::inst::InstructionType::Exit(_) => (),
@@ -74,9 +75,12 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
             builder.add_instruction(AsmInstruction::Addi(ArgReg(0), Ir(reg), 0));
             builder.add_instruction(AsmInstruction::Ret);
         }
-        &middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => builder.add_instruction(
-            AsmInstruction::Jal(Zero, bb_index as i64, builder.name.clone()),
-        ),
+        &middleend::inst::InstructionType::Jmp(TerminatorJump(bb_index)) => builder
+            .add_instruction(AsmInstruction::Jal(
+                Zero,
+                bb_index as i64,
+                builder.name.clone(),
+            )),
         &middleend::inst::InstructionType::Branch(TerminatorBranch(reg, _, false_bb)) => {
             builder.add_instruction(AsmInstruction::Beq(
                 Ir(reg),

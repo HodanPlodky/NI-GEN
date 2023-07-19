@@ -3,7 +3,7 @@ use std::fmt::Display;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Rd {
     // Pseudo registers
-    Ir(middleend::inst::Register),
+    Ir(middleend::ir::Register),
     ArgReg(u8),
     Zero,
     Sp,
@@ -79,7 +79,7 @@ pub enum AsmInstruction {
     Sra(Rd, Rd, Rd),
 
     // pseudo instructions
-    Call(String, middleend::inst::InstUUID),
+    Call(String, middleend::ir::InstUUID),
     Ret,
 }
 

@@ -9,16 +9,18 @@ use frontend::{
 
 use crate::{
     inst::{
-        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator, TerminatorBranch,
-        TerminatorJump, TerminatorReg,
-    },
-    ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
+        ImmC, ImmI, Reg, RegReg, RegRegs, SymRegs, Terminator, TerminatorBranch,
+        TerminatorJump, TerminatorReg, InstructionType,
+    }, ir::{IrProgram, Register, RegType}, builder::{IrBuilderError, IrBuilder, FunctionBuilder},
 };
 
 pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
     let mut compiler = IrCompiler::default();
     compiler.compile(program)
 }
+
+// for better writing
+type I = InstructionType;
 
 // name to register with address
 type Env = HashMap<String, Register>;

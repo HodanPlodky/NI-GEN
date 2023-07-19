@@ -2,10 +2,10 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     inst::{
-        BBIndex, BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegType,
-        Register, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+        ImmC, ImmI, InstructionType, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump,
+        TerminatorReg,
     },
-    ir::{Function, IrProgram},
+    ir::{BBIndex, BasicBlock, Function, Instruction, IrProgram, RegType, Register},
 };
 
 #[derive(Debug)]
@@ -431,11 +431,14 @@ impl Interpret {
 #[cfg(test)]
 mod tests {
     use crate::{
+        builder::{FunctionBuilder, IrBuilder},
         inst::Terminator,
-        ir::{FunctionBuilder, IrBuilder, I},
     };
 
     use super::*;
+
+    // for better writing
+    type I = InstructionType;
 
     #[test]
     fn basic_interpret_test() {

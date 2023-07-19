@@ -1,6 +1,4 @@
-use std::ops::{Deref, DerefMut};
-
-use frontend::ast::AstData;
+use crate::ir::{Register, BBIndex, Symbol};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
@@ -109,87 +107,13 @@ impl InstructionType {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum RegType {
-    Void,
-    Int,
-    Char,
-}
-
-pub type Register = InstUUID;
-pub type Symbol = String;
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct BasicBlock {
-    predecesors: Vec<BBIndex>,
-    pub instruction: Vec<Instruction>,
-}
-
-impl Default for BasicBlock {
-    fn default() -> Self {
-        Self {
-            predecesors: vec![],
-            instruction: vec![],
-        }
-    }
-}
-
-impl Deref for BasicBlock {
-    type Target = Vec<Instruction>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.instruction
-    }
-}
-
-impl DerefMut for BasicBlock {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.instruction
-    }
-}
-
-impl BasicBlock {
-    pub fn add_predecesor(&mut self, predecesor: BBIndex) {
-        self.predecesors.push(predecesor)
-    }
-
-    pub fn pred(&self) -> Vec<BBIndex> {
-        self.predecesors.clone()
-    }
-
-    pub fn succ(&self) -> Vec<BBIndex> {
-        use InstructionType::*;
-        let inst = match self.last() {
-            Some(inst) => inst,
-            None => return vec![],
-        };
-        match &inst.data {
-            Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
-            Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
-                vec![*bbindex_true, *bbindex_false]
-            }
-            _ => [].to_vec(),
-        }
-    }
-
-    pub fn terminated(&self) -> bool {
-        if self.is_empty() {
-            false
-        } else {
-            self.last().unwrap().data.terminator()
-        }
-    }
-}
-
-pub type BBIndex = usize;
-
 // types of instructions
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmI(pub i64);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmC(pub char);
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ImmS(pub Symbol);
+pub struct ImmS(pub String);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Reg(pub Register);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -209,37 +133,3 @@ pub struct TerminatorBranch(pub Register, pub BBIndex, pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TerminatorReg(pub Register);
 
-/// Id of the instruction
-/// the bool flag signifies if the instruction
-/// is part of the global space
-pub type InstUUID = (bool, usize, usize);
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Instruction {
-    pub id: InstUUID,
-    pub reg_type: RegType,
-    pub ast_data: Option<AstData>,
-    pub data: InstructionType,
-}
-
-impl Instruction {
-    pub fn new(
-        id: InstUUID,
-        reg_type: RegType,
-        ast_data: Option<AstData>,
-        data: InstructionType,
-    ) -> Self {
-        Self {
-            id,
-            reg_type,
-            ast_data,
-            data,
-        }
-    }
-}
-
-impl From<Instruction> for Register {
-    fn from(value: Instruction) -> Self {
-        return value.id;
-    }
-}

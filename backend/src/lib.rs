@@ -11,7 +11,7 @@ use fn_builder::AsmFunctionBuilder;
 use inst_selection::basic_instruction_selection;
 use insts::AsmInstruction;
 use middleend::{
-    inst::BasicBlock,
+    ir::BasicBlock,
     ir::{Function, IrProgram},
 };
 use peepholer::{MockDatabase, PeepHoler};

@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use middleend::{
-    analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
-    ir::Function,
-};
+use middleend::{ir::Function, analysis::{live::LiveRegisterAnalysis, dataflow::DataFlowAnalysis}};
 
 use crate::{
     backend_ir::AsmBasicBlock,
@@ -18,7 +15,7 @@ pub struct AsmFunctionBuilder<'a> {
     stacksize: usize,
     pub actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
-    liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
+    liveness: Vec<Vec<HashSet<middleend::ir::Register>>>,
 
     freetemp: Vec<usize>,
     ir_function: &'a Function,

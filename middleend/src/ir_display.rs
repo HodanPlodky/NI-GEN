@@ -2,10 +2,10 @@ use std::fmt::Display;
 
 use crate::{
     inst::{
-        BasicBlock, ImmC, ImmI, Instruction, InstructionType, Reg, RegReg, RegRegs, RegType,
-        Register, TerminatorBranch, TerminatorJump, TerminatorReg, SymRegs,
+        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegs, SymRegs, TerminatorBranch,
+        TerminatorJump, TerminatorReg,
     },
-    ir::{Function, IrProgram},
+    ir::{BasicBlock, Function, Instruction, IrProgram, RegType, Register},
 };
 
 fn reg_view(reg: Register) -> String {
@@ -44,17 +44,27 @@ impl Display for InstructionType {
             InstructionType::Mod(RegReg(l, r)) => {
                 write!(f, "mod {} {}", reg_view(*l), reg_view(*r))
             }
-            InstructionType::Shr(RegReg(l, r)) => write!(f, "shr {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Shl(RegReg(l, r)) => write!(f, "shl {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::And(RegReg(l, r)) => write!(f, "and {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Shr(RegReg(l, r)) => {
+                write!(f, "shr {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::Shl(RegReg(l, r)) => {
+                write!(f, "shl {} {}", reg_view(*l), reg_view(*r))
+            }
+            InstructionType::And(RegReg(l, r)) => {
+                write!(f, "and {} {}", reg_view(*l), reg_view(*r))
+            }
             InstructionType::Or(RegReg(l, r)) => write!(f, "or {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Xor(RegReg(l, r)) => write!(f, "xor {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Xor(RegReg(l, r)) => {
+                write!(f, "xor {} {}", reg_view(*l), reg_view(*r))
+            }
             InstructionType::Neg(_) => todo!(),
             InstructionType::Lt(RegReg(l, r)) => write!(f, "lt {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Le(RegReg(l, r)) => write!(f, "le {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Gt(RegReg(l, r)) => write!(f, "gt {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Ge(RegReg(l, r)) => write!(f, "ge {} {}", reg_view(*l), reg_view(*r)),
-            InstructionType::Eql(RegReg(l, r)) => write!(f, "eql {} {}", reg_view(*l), reg_view(*r)),
+            InstructionType::Eql(RegReg(l, r)) => {
+                write!(f, "eql {} {}", reg_view(*l), reg_view(*r))
+            }
             InstructionType::Call(RegRegs(reg, regs)) => write!(
                 f,
                 "call {} [{}]",
