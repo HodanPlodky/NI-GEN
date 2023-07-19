@@ -9,7 +9,6 @@ mod register_alloc;
 use backend_ir::{AsmFunction, AsmProgram};
 use fn_builder::AsmFunctionBuilder;
 use inst_selection::basic_instruction_selection;
-use insts::AsmInstruction;
 use middleend::{
     ir::BasicBlock,
     ir::{Function, IrProgram},

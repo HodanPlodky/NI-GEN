@@ -1,6 +1,5 @@
 use crate::insts::AsmInstruction;
 
-
 type Data = Vec<u8>;
 
 pub type AsmBasicBlock = Vec<AsmInstruction>;

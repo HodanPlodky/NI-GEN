@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{backend_ir::AsmBasicBlock, AsmFunction, AsmInstruction, AsmProgram};
+use crate::{backend_ir::AsmBasicBlock, insts::AsmInstruction, AsmFunction, AsmProgram};
 
 impl Display for AsmInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

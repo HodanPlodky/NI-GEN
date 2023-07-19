@@ -4,7 +4,7 @@ use middleend::{ir::Function, analysis::{live::LiveRegisterAnalysis, dataflow::D
 
 use crate::{
     backend_ir::AsmBasicBlock,
-    insts::{AsmInstruction, Offset, Rd},
+    insts::{ Offset, Rd, AsmInstruction},
     peepholer::PeepHoler,
     register_alloc::{LinearAllocator, RegAllocator, ValueCell},
     AsmFunction,
