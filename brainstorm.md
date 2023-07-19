@@ -7,6 +7,8 @@ Ok problem I am solving is that that I want to do some optimizations in IR but t
 ## First solution
 * It would require to create more generic Function lattice and create new type of the live analysis
 * It could help with performance since you would do this analysis on the already optimized code and it would allow for better allocation and less information to be processed
+* This would require to rewrite part of the dataflow analysis to handle not only function but even some iterator of iterator or abstract this to different part of the program
+* Still I have to rewrite part of that since I use the InstUUID to handle before function
 
 ## Second solution
 * This would require to add information of the source IR instruction into ASM IR instruction
