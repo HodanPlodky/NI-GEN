@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
+    ops::{Deref, DerefMut},
 };
 
 struct WorkList<T, V> {
@@ -32,7 +33,41 @@ where
     T: Hash + Eq,
     V: Hash + Eq,
 {
-    data: HashMap<T, HashSet<(V, V)>>,
+    data: MapToSet<T, (V, V)>,
+}
+
+impl<T, V> Default for Condition<T, V>
+where
+    T: Hash + Eq,
+    V: Hash + Eq,
+{
+    fn default() -> Self {
+        Self {
+            data: MapToSet::default(),
+        }
+    }
+}
+
+impl<T, V> Deref for Condition<T, V>
+where
+    T: Hash + Eq,
+    V: Hash + Eq,
+{
+    type Target = MapToSet<T, (V, V)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T, V> DerefMut for Condition<T, V>
+where
+    T: Hash + Eq,
+    V: Hash + Eq,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
 }
 
 struct MapToSet<F, T>
@@ -93,37 +128,66 @@ where
         }
     }
 
-    pub fn solution(&self) -> &HashMap<V, HashSet<T>> {
-        &self.solution.data
+    pub fn solution(self) -> HashMap<V, HashSet<T>> {
+        self.solution.data
     }
 
-    pub fn addToken(&mut self, t: T, v: V) {
+    pub fn add_token(&mut self, t: T, v: V) {
         if !self.solution.get_or_default(&v).contains(&t) {
             self.solution.get_or_default(&v).insert(t.clone());
             self.worklist.add(t, v)
         }
     }
 
-    pub fn addEdge(&mut self, x: V, y: V) {
+    pub fn add_edge(&mut self, x: V, y: V) {
         if x != y && !self.succesor.get_or_default(&x).contains(&y) {
             self.succesor.get_or_default(&x).insert(y.clone());
             for t in self.solution.get_or_default(&x).clone().iter() {
-                self.addToken(t.clone(), y.clone())
+                self.add_token(t.clone(), y.clone())
             }
         }
     }
 
     pub fn propagate(&mut self) {
         while let Some((t, x)) = self.worklist.next() {
-            todo!()
+            if !self.conditions.contains_key(&x) {
+                self.conditions.insert(x.clone(), Condition::default());
+            }
+            for (y, z) in self
+                .conditions
+                .get_mut(&x)
+                .unwrap()
+                .get_or_default(&t)
+                .clone()
+                .iter()
+            {
+                self.add_edge(y.clone(), z.clone());
+            }
+
+            for y in self.succesor.get_or_default(&x).clone().iter() {
+                self.add_token(t.clone(), y.clone());
+            }
         }
     }
 
     pub fn includes(&mut self, t: T, v: V) {
-        todo!()
+        self.add_token(t, v);
+        self.propagate();
     }
 
-    pub fn includesImplies(&mut self, T: T, x: V, y: V, z: V) {
-        todo!()
+    pub fn includes_implies(&mut self, t: T, x: V, y: V, z: V) {
+        if self.solution.get_or_default(&x).contains(&t) {
+            self.add_edge(y, z);
+            self.propagate();
+        } else {
+            if !self.conditions.contains_key(&x) {
+                self.conditions.insert(x.clone(), Condition::default());
+            }
+            self.conditions
+                .get_mut(&x)
+                .unwrap()
+                .get_or_default(&t)
+                .insert((y, z));
+        }
     }
 }

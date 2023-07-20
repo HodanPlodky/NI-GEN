@@ -9,8 +9,8 @@ pub enum InstructionType {
     St(RegReg),
     Alloca(ImmI),
     Allocg(ImmI),
-    Cpy(RegRegImm),
     Gep(RegRegImm),
+    Mov(Reg),
 
     // number binary
     Add(RegReg),
