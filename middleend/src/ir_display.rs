@@ -27,7 +27,7 @@ impl Display for InstructionType {
             }
             InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n),
             InstructionType::Allocg(_) => todo!(),
-            InstructionType::Cpy(_) => todo!(),
+            InstructionType::Mov(_) => todo!(),
             InstructionType::Gep(_) => todo!(),
             InstructionType::Add(RegReg(l, r)) => {
                 write!(f, "add {} {}", reg_view(*l), reg_view(*r))

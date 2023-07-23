@@ -22,7 +22,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
         }
         &middleend::inst::InstructionType::Alloca(ImmI(_)) => (),
         &middleend::inst::InstructionType::Allocg(_) => todo!(),
-        &middleend::inst::InstructionType::Cpy(_) => todo!(),
+        &middleend::inst::InstructionType::Mov(_) => todo!(),
         &middleend::inst::InstructionType::Gep(_) => todo!(),
         &middleend::inst::InstructionType::Add(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Add(Ir(reg), Ir(rs1), Ir(rs2)));

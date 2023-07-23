@@ -6,7 +6,7 @@ pub enum InstructionType {
     Ldi(ImmI),
     Ldc(ImmC),
     Ld(Reg),
-    St(RegReg),
+    St(RegReg), // [addr], reg
     Alloca(ImmI),
     Allocg(ImmI),
     Gep(RegRegImm),
@@ -70,7 +70,7 @@ impl InstructionType {
         match self {
             InstructionType::Ld(Reg(a)) => vec![*a],
             InstructionType::St(RegReg(a, b)) => vec![*a, *b],
-            InstructionType::Cpy(RegRegImm(a, b, _)) => vec![*a, *b],
+            InstructionType::Mov(Reg(a)) => vec![*a],
             InstructionType::Gep(RegRegImm(a, b, _)) => vec![*a, *b],
             InstructionType::Add(RegReg(a, b)) => vec![*a, *b],
             InstructionType::Sub(RegReg(a, b)) => vec![*a, *b],

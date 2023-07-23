@@ -323,7 +323,7 @@ impl Interpret {
                     let addr = self.mem.alloca(*imm)?;
                     self.set(inst.id, addr)?
                 }
-                InstructionType::Cpy(_) => todo!(),
+                InstructionType::Mov(_) => todo!(),
                 InstructionType::Gep(_) => todo!(),
                 InstructionType::Add(regs) => {
                     self.binary_op(inst.clone(), *regs, &|a, b| a + b, &|a, b| a + b)?
