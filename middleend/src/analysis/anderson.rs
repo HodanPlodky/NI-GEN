@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::cubicsolver::CubicSolver,
-    ir::{BasicBlock, Function, Instruction, Register},
+    ir::{BasicBlock, Function, Instruction, Register}, inst::Reg,
 };
 
 /// Position of the alloca
@@ -39,8 +39,11 @@ impl<'a> AndersenAnalysis<'a> {
             crate::inst::InstructionType::Alloca(_) => {
                 solver.includes(Cell(inst.id.1, inst.id.2), inst.id)
             }
-            crate::inst::InstructionType::Mov(Reg(reg)) => solver.add_edge(inst.id, reg),
-            _ => (),
+            crate::inst::InstructionType::Mov(Reg(reg)) => solver.add_edge(reg, inst.id),
+            crate::inst::InstructionType::Ld(_) => todo!(),
+            crate::inst::InstructionType::St(_) => todo!(),
+            crate::inst::InstructionType::Allocg(_) => todo!(),
+            _ => ()
         }
     }
 }
