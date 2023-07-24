@@ -19,8 +19,9 @@ impl<T, V> WorkList<T, V> {
         self.data.push((t, v));
     }
 
+    #[allow(dead_code)]
     fn empty(&self) -> bool {
-        self.empty()
+        self.data.is_empty()
     }
 
     fn next(&mut self) -> Option<(T, V)> {
