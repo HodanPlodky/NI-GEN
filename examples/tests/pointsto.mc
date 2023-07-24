@@ -4,7 +4,7 @@ int main() {
     int x;
     int y;
     p = &x;
-    q = &y;
     p = q;
+    q = &y;
     return *p;
 }
