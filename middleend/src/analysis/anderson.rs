@@ -78,12 +78,30 @@ impl<'a> AndersenAnalysis<'a> {
             // anything that could be in the value it the
             // address of the [reg] could be also in the inst.id
             crate::inst::InstructionType::Ld(Reg(addr)) => {
-                solver.add_edge(Place::Memory(addr), Place::Register(inst.id))
+                // every thing that could be on the address [addr] could be in the register
+                solver.add_edge(Place::Memory(addr), Place::Register(inst.id));
+
+                for mem in self.get_memory() {
+                    solver.includes_implies(
+                        Cell(mem),
+                        Place::Memory(addr),
+                        Place::Memory(mem),
+                        Place::Register(inst.id),
+                    );
+                }
             }
             // anything that could be in the register reg
             // could be in the in the memory on the address [addr]
             crate::inst::InstructionType::St(RegReg(addr, reg)) => {
-                solver.add_edge(Place::Register(reg), Place::Memory(addr))
+                solver.add_edge(Place::Register(reg), Place::Memory(addr));
+                for mem in self.get_memory() {
+                    solver.includes_implies(
+                        Cell(mem),
+                        Place::Memory(addr),
+                        Place::Register(reg),
+                        Place::Memory(mem),
+                    );
+                }
             }
             // I am still not using this so fuck it
             crate::inst::InstructionType::Allocg(_) => todo!(),
@@ -102,16 +120,22 @@ impl<'a> AndersenAnalysis<'a> {
                 .map(|bb| {
                     bb.iter().filter(|inst| match inst.data {
                         crate::inst::InstructionType::St(_) => true,
+                        crate::inst::InstructionType::Ld(_) => true,
                         _ => false,
                     })
                 })
                 .flatten()
                 .map(|inst| {
-                    if let crate::inst::InstructionType::St(RegReg(addr, _)) = inst.data {
-                        addr
-                    } else {
-                        unreachable!()
+                    match inst.data {
+                        crate::inst::InstructionType::St(RegReg(addr, _)) => addr,
+                        crate::inst::InstructionType::Ld(Reg(addr)) => addr,
+                        _ => unreachable!()
                     }
+                    //if let crate::inst::InstructionType::St(RegReg(addr, _)) = inst.data {
+                        //addr
+                    //} else {
+                        //unreachable!()
+                    //}
                 })
                 .collect();
             self.memory = Some(memory.into_iter().collect());
