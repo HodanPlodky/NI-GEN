@@ -105,6 +105,10 @@ impl BasicBlock {
         }
     }
 
+    pub fn get_used_regs(&self) -> Vec<Register> {
+        self.iter().map(|x| x.data.get_regs()).flatten().collect()
+    }
+
     pub fn terminated(&self) -> bool {
         if self.is_empty() {
             false
@@ -127,6 +131,10 @@ pub struct Function {
 impl Function {
     pub fn start(&self) -> &BasicBlock {
         &self.blocks[0]
+    }
+
+    pub fn get_used_regs(&self) -> Vec<Register> {
+        self.iter().map(|x| x.get_used_regs()).flatten().collect()
     }
 }
 

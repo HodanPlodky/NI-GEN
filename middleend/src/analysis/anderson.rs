@@ -131,11 +131,6 @@ impl<'a> AndersenAnalysis<'a> {
                         crate::inst::InstructionType::Ld(Reg(addr)) => addr,
                         _ => unreachable!()
                     }
-                    //if let crate::inst::InstructionType::St(RegReg(addr, _)) = inst.data {
-                        //addr
-                    //} else {
-                        //unreachable!()
-                    //}
                 })
                 .collect();
             self.memory = Some(memory.into_iter().collect());
