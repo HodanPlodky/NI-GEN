@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+};
 
 use crate::ir::Function;
 
@@ -6,6 +9,58 @@ pub trait Lattice<A> {
     fn top(&self) -> A;
     fn bot(&self) -> A;
     fn lub(&self, a: &A, b: &A) -> A;
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FlatElem<T>
+where
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    Top,
+    Value(T),
+    Bot,
+}
+
+pub struct FlatLattice<T>
+where
+    T: PartialEq + Eq + Clone + Copy,
+{
+    phantom: PhantomData<T>,
+}
+
+impl<T> FlatLattice<T>
+where
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> Lattice<FlatElem<T>> for FlatLattice<T>
+where
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    fn top(&self) -> FlatElem<T> {
+        FlatElem::Top
+    }
+
+    fn bot(&self) -> FlatElem<T> {
+        FlatElem::Bot
+    }
+
+    fn lub(&self, a: &FlatElem<T>, b: &FlatElem<T>) -> FlatElem<T> {
+        use FlatElem::*;
+        match (a, b) {
+            (Top, _) => Top,
+            (_, Top) => Top,
+            (Value(x), Value(y)) if x == y => Value(*x),
+            (Value(x), Value(y)) => Top,
+            (x, Bot) | (Bot, x) => *x,
+        }
+    }
 }
 
 pub struct PowerSetLattice<E>
@@ -41,29 +96,37 @@ where
     }
 }
 
-pub struct MapLattce<'a, F, T>
+pub struct MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
     T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    L: Lattice<T>,
 {
     map: HashSet<F>,
-    inner_lattice: &'a dyn Lattice<T>,
+    inner_lattice: L,
+    phantom: PhantomData<T>,
 }
 
-impl<'a, F, T> MapLattce<'a, F, T>
+impl<L, F, T> MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
     T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    L: Lattice<T>,
 {
-    pub fn new(map: HashSet<F>, inner_lattice: &'a dyn Lattice<T>) -> Self {
-        Self { map, inner_lattice }
+    pub fn new(map: HashSet<F>, inner_lattice: L) -> Self {
+        Self {
+            map,
+            inner_lattice,
+            phantom: PhantomData::default(),
+        }
     }
 }
 
-impl<'a, F, T> Lattice<HashMap<F, T>> for MapLattce<'a, F, T>
+impl<L, F, T> Lattice<HashMap<F, T>> for MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
     T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    L: Lattice<T>,
 {
     fn top(&self) -> HashMap<F, T> {
         HashMap::from_iter(
