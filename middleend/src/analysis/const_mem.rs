@@ -23,7 +23,14 @@ pub struct ConstantMemoryAnalysis<'a> {
 
 impl<'a> ConstantMemoryAnalysis<'a> {
     pub fn new(function: &'a Function) -> Self {
-        let stores: HashSet<MemoryPlace> = function
+        Self {
+            function,
+            inner_lattice: MapLattice::new(ConstantMemoryAnalysis::get_stores(function), FlatLattice::new()),
+        }
+    }
+
+    fn get_stores(function: &'a Function) -> HashSet<MemoryPlace> {
+        function
             .blocks
             .iter()
             .map(|x| {
@@ -39,11 +46,7 @@ impl<'a> ConstantMemoryAnalysis<'a> {
                     .collect::<Vec<MemoryPlace>>()
             })
             .flatten()
-            .collect();
-        Self {
-            function,
-            inner_lattice: MapLattice::new(stores, FlatLattice::new()),
-        }
+            .collect()
     }
 }
 
@@ -61,25 +64,8 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
     }
 
     fn set_function(&mut self, func: &'a Function) {
-        let stores: HashSet<MemoryPlace> = func
-            .blocks
-            .iter()
-            .map(|x| {
-                x.iter()
-                    .filter(|x| match x.data {
-                        InstructionType::St(_) => true,
-                        _ => false,
-                    })
-                    .map(|x| match x.data {
-                        InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
-                        _ => unreachable!(),
-                    })
-                    .collect::<Vec<MemoryPlace>>()
-            })
-            .flatten()
-            .collect();
         self.function = func;
-        self.inner_lattice = MapLattice::new(stores, FlatLattice::new());
+        self.inner_lattice = MapLattice::new(ConstantMemoryAnalysis::get_stores(func), FlatLattice::new());
     }
 
     fn direction(&self) -> super::dataflow::DataflowType {
