@@ -1,11 +1,18 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
-use crate::ir::{Function, Register};
+use crate::{
+    analysis::lattice::Lattice,
+    inst::{InstructionType, RegReg},
+    ir::{Function, Register},
+};
 
-use super::{lattice::{FlatElem, FlatLattice, MapLattice}, dataflow::{DataFlowAnalysis, DataflowType}};
+use super::{
+    dataflow::{DataFlowAnalysis, DataflowType},
+    lattice::{FlatElem, FlatLattice, MapLattice},
+};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct MemoryPlace(Register);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MemoryPlace(Register);
 
 type ConstLattice = MapLattice<FlatLattice<Register>, MemoryPlace, FlatElem<Register>>;
 
@@ -15,18 +22,37 @@ pub struct ConstantMemoryAnalysis<'a> {
 }
 
 impl<'a> ConstantMemoryAnalysis<'a> {
-    pub fn new(
-        function: &'a Function,
-    ) -> Self {
+    pub fn new(function: &'a Function) -> Self {
+        let stores: HashSet<MemoryPlace> = function
+            .blocks
+            .iter()
+            .map(|x| {
+                x.iter()
+                    .filter(|x| match x.data {
+                        InstructionType::St(_) => true,
+                        _ => false,
+                    })
+                    .map(|x| match x.data {
+                        InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<MemoryPlace>>()
+            })
+            .flatten()
+            .collect();
         Self {
             function,
-            inner_lattice : MapLattice::new(HashSet::new(), FlatLattice::new()),
+            inner_lattice: MapLattice::new(stores, FlatLattice::new()),
         }
     }
 }
 
-impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLattice> for ConstantMemoryAnalysis<'a> {
-    fn inner_lattice(&self) -> &dyn super::lattice::Lattice<HashMap<MemoryPlace, FlatElem<Register>>> {
+impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLattice>
+    for ConstantMemoryAnalysis<'a>
+{
+    fn inner_lattice(
+        &self,
+    ) -> &dyn super::lattice::Lattice<HashMap<MemoryPlace, FlatElem<Register>>> {
         &self.inner_lattice
     }
 
@@ -34,15 +60,50 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
         self.function
     }
 
-    fn set_function(&mut self, func : &'a Function) {
+    fn set_function(&mut self, func: &'a Function) {
+        let stores: HashSet<MemoryPlace> = func
+            .blocks
+            .iter()
+            .map(|x| {
+                x.iter()
+                    .filter(|x| match x.data {
+                        InstructionType::St(_) => true,
+                        _ => false,
+                    })
+                    .map(|x| match x.data {
+                        InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<MemoryPlace>>()
+            })
+            .flatten()
+            .collect();
         self.function = func;
+        self.inner_lattice = MapLattice::new(stores, FlatLattice::new());
     }
 
     fn direction(&self) -> super::dataflow::DataflowType {
         DataflowType::Forwards
     }
 
-    fn transfer_fun(&self, inst: crate::ir::InstUUID, state: HashMap<MemoryPlace, FlatElem<Register>>) -> HashMap<MemoryPlace, FlatElem<Register>> {
-        todo!()
+    fn transfer_fun(
+        &self,
+        inst: crate::ir::InstUUID,
+        state: HashMap<MemoryPlace, FlatElem<Register>>,
+    ) -> HashMap<MemoryPlace, FlatElem<Register>> {
+        use InstructionType::*;
+
+        let blocks = self.function();
+        let (_, bb_index, inst_index) = inst;
+        let inst = blocks[bb_index][inst_index].clone();
+        match inst.data {
+            St(RegReg(addr, reg)) => {
+                let mut state = state;
+                state.insert(MemoryPlace(addr), FlatElem::Value(reg));
+                state
+            }
+            _ if bb_index == 0 && inst_index == 0 => self.inner_lattice.bot(),
+            _ => state,
+        }
     }
 }

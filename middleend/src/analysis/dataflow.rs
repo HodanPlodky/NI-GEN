@@ -43,7 +43,7 @@ where
             DataflowType::Forwards if insts_index == 0 => func.blocks[bb_index]
                 .pred()
                 .into_iter()
-                .map(|x| (false, x, func.blocks[x].len()))
+                .map(|x| (false, x, func.blocks[x].len() - 1))
                 .collect(),
             DataflowType::Forwards => vec![(g, bb_index, insts_index - 1)],
         }

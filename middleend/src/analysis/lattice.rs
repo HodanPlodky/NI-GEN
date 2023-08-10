@@ -11,7 +11,7 @@ pub trait Lattice<A> {
     fn lub(&self, a: &A, b: &A) -> A;
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlatElem<T>
 where
     T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
