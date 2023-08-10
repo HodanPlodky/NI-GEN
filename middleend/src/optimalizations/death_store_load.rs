@@ -1,4 +1,4 @@
-use crate::ir::{Function, Instruction};
+use crate::ir::Function;
 
 fn remove_store_load(function: &mut Function) {
     // removed unused registers
@@ -15,4 +15,8 @@ fn remove_store_load(function: &mut Function) {
         }
     }
 
+    // rewrite loads into just copies
+    // if possible
+
+    
 }

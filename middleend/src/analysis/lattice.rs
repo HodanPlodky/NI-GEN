@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::ir::Function;
 
@@ -38,6 +38,55 @@ where
 
     fn lub(&self, a: &HashSet<E>, b: &HashSet<E>) -> HashSet<E> {
         HashSet::union(a, b).copied().collect()
+    }
+}
+
+pub struct MapLattce<'a, F, T>
+where
+    F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    map: HashSet<F>,
+    inner_lattice: &'a dyn Lattice<T>,
+}
+
+impl<'a, F, T> MapLattce<'a, F, T>
+where
+    F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    pub fn new(map: HashSet<F>, inner_lattice: &'a dyn Lattice<T>) -> Self {
+        Self { map, inner_lattice }
+    }
+}
+
+impl<'a, F, T> Lattice<HashMap<F, T>> for MapLattce<'a, F, T>
+where
+    F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+{
+    fn top(&self) -> HashMap<F, T> {
+        HashMap::from_iter(
+            self.map
+                .iter()
+                .map(|x| (x.clone(), self.inner_lattice.top())),
+        )
+    }
+
+    fn bot(&self) -> HashMap<F, T> {
+        HashMap::from_iter(
+            self.map
+                .iter()
+                .map(|x| (x.clone(), self.inner_lattice.bot())),
+        )
+    }
+
+    fn lub(&self, a: &HashMap<F, T>, b: &HashMap<F, T>) -> HashMap<F, T> {
+        HashMap::from_iter(
+            self.map
+                .iter()
+                .map(|x| (x.clone(), self.inner_lattice.lub(&a[x], &b[x]))),
+        )
     }
 }
 
