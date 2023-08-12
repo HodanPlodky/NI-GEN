@@ -57,7 +57,7 @@ where
             (Top, _) => Top,
             (_, Top) => Top,
             (Value(x), Value(y)) if x == y => Value(*x),
-            (Value(x), Value(y)) => Top,
+            (Value(_), Value(_)) => Top,
             (x, Bot) | (Bot, x) => *x,
         }
     }
@@ -102,7 +102,7 @@ where
     T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
     L: Lattice<T>,
 {
-    map: HashSet<F>,
+    pub map: HashSet<F>,
     inner_lattice: L,
     phantom: PhantomData<T>,
 }

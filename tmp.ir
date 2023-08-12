@@ -1,0 +1,52 @@
+global:
+function global(0) : void {
+BB0:
+	exit
+}
+function main(0) : int {
+BB0:
+	(0,0) : int = alloca 8
+	(0,1) : int = ldi 0
+	store [(0,0)] (0,1)
+	(0,3) : int = alloca 8
+	(0,4) : int = ldi 0
+	store [(0,3)] (0,4)
+	jmp BB1
+BB1:
+	(1,0) : int = ld [(0,3)]
+	(1,1) : int = ldi 1000
+	(1,2) : int = lt (1,0) (1,1)
+	branch (1,2) BB2 BB3
+BB2:
+	(2,0) : int = alloca 8
+	(2,1) : int = ldi 0
+	store [(2,0)] (2,1)
+	jmp BB4
+BB3:
+	(3,0) : int = ld [(0,0)]
+	retr (3,0)
+BB4:
+	(4,0) : int = ld [(2,0)]
+	(4,1) : int = ldi 1000
+	(4,2) : int = lt (4,0) (4,1)
+	branch (4,2) BB5 BB6
+BB5:
+	(5,0) : int = ld [(0,0)]
+	(5,1) : int = ld [(0,3)]
+	(5,2) : int = add (5,0) (5,1)
+	(5,3) : int = ld [(2,0)]
+	(5,4) : int = add (5,2) (5,3)
+	store [(0,0)] (5,4)
+	(5,6) : int = ld [(2,0)]
+	(5,7) : int = ldi 1
+	(5,8) : int = add (5,6) (5,7)
+	store [(2,0)] (5,8)
+	jmp BB4
+BB6:
+	(6,0) : int = ld [(0,3)]
+	(6,1) : int = ldi 1
+	(6,2) : int = add (6,0) (6,1)
+	store [(0,3)] (6,2)
+	jmp BB1
+}
+

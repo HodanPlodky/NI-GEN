@@ -1,6 +1,6 @@
 use crate::{
     inst::InstructionType,
-    ir::{BBIndex, BasicBlock, Function, InstUUID, Instruction, IrProgram, RegType, Register},
+    ir::{BBIndex, BasicBlock, Function, InstUUID, Instruction, IrProgram, RegType, Register}, optimalizations::death_store_load::remove_store_load,
 };
 
 #[derive(Debug)]
@@ -119,12 +119,16 @@ impl FunctionBuilder {
     }
 
     pub fn create(self, name: &str) -> Function {
-        Function {
+        let mut result = Function {
             name: name.to_string(),
             arg_count: self.arg_count,
             ret_type: self.ret_type,
             blocks: self.blocks,
-        }
+        };
+
+        remove_store_load(&mut result);
+
+        result
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::lattice::Lattice,
-    inst::{InstructionType, RegReg, SymRegs},
+    inst::{InstructionType, RegReg},
     ir::{Function, Register},
 };
 
@@ -88,15 +88,6 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
                 state.insert(MemoryPlace(addr), FlatElem::Value(reg));
                 state
             }
-            CallDirect(SymRegs(_, regs)) => {
-                let mut state = state;
-                for reg in regs.iter() {
-                    if self.inner_lattice.map.contains(&MemoryPlace(*reg)) {
-                        state.insert(MemoryPlace(*reg), FlatElem::Top);
-                    }
-                }
-                state
-            },
             _ if bb_index == 0 && inst_index == 0 => self.inner_lattice.bot(),
             _ => state,
         }
