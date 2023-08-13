@@ -82,8 +82,18 @@ fn main() {
     }
     else if args[1] == "--const" {
         println!("{}", ir_prog);
-        let live = ConstantMemoryAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap());
-        let result = analyze_program(&ir_prog, live);
+        let const_analysis = ConstantMemoryAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap());
+        let result = analyze_program(&ir_prog, const_analysis);
         printconst(result);
+    }
+    else if args[1] == "--pred" {
+        println!("{}", ir_prog);
+        for (name, func) in ir_prog.funcs.iter() {
+            println!("function {} {{", name);
+            for bb in func.blocks.iter() {
+                println!("\t{:?}", bb.pred());
+            }
+            println!("}}");
+        }
     }
 }
