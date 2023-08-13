@@ -20,7 +20,7 @@ where
     /// helper function for getting function
     fn function(&self) -> &Function;
     /// helper function for setting function
-    fn set_function(&mut self, func : &'a Function);
+    fn set_function(&mut self, func: &'a Function);
     /// helper function for type of analysis
     fn direction(&self) -> DataflowType;
 
@@ -60,10 +60,14 @@ where
     }
 
     fn fun_block(&self, state: &Vec<Vec<A>>, block: &BasicBlock) -> Vec<A> {
-        block
-            .iter()
-            .map(|inst| self.transfer_fun(inst.id, self.join(inst.id, state)))
+        (0..block.len())
+            .map(|x| (block[x].id.0, block[x].id.1, x))
+            .map(|inst| self.transfer_fun(inst, self.join(inst, state)))
             .collect()
+        //block
+        //.iter()
+        //.map(|inst| self.transfer_fun(inst.id, self.join(inst.id, state)))
+        //.collect()
     }
 
     /// function which aplies the tranfer function on

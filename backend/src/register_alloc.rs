@@ -125,7 +125,8 @@ impl LinearAllocator {
 
     fn allocate(&mut self, prog: &middleend::ir::Function) {
         for block in prog.blocks.iter() {
-            for inst in block.iter() {
+            for inst_index in 0..block.len() {
+                let inst = &block[inst_index];
                 if self.used_ir.contains(&Rd::Ir(inst.id)) {
                     match &inst.data {
                         middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
@@ -136,7 +137,7 @@ impl LinearAllocator {
                         _ => self.allocate_reg(inst.id, &prog.blocks),
                     }
                 }
-                let (_, bb_index, inst_index) = inst.id;
+                let (_, bb_index, _) = inst.id;
                 self.used[bb_index][inst_index] = self.used_register.clone();
                 self.release(inst.id);
             }
