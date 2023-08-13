@@ -17,7 +17,6 @@ pub fn remove_store_load(function: &mut Function) {
     let mut const_analysis = ConstantMemoryAnalysis::new(function);
     let result = const_analysis.analyze();
 
-    let used = function.get_used_regs();
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
         for inst_index in 0..bb.len() {
@@ -93,7 +92,7 @@ fn remove_unused_stores(function: &mut Function) {
                         None => HashSet::new(),
                     };
 
-                    if cells.is_disjoint(&loads) {
+                    if cells.is_disjoint(&loads) && !cells.contains(&Cell::Volatile) {
                         bb.remove(inst_index);
                     } else {
                         inst_index += 1;

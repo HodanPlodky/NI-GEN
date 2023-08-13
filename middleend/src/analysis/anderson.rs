@@ -8,7 +8,10 @@ use crate::{
 
 /// Position of the alloca
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Cell(InstUUID);
+pub enum Cell {
+    Alloc(InstUUID),
+    Volatile,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Place {
@@ -69,8 +72,11 @@ impl<'a> AndersenAnalysis<'a> {
 
     fn analyze_inst(&mut self, inst: &Instruction, solver: &mut CubicSolver<Cell, Place>) {
         match inst.data {
+            crate::inst::InstructionType::Arg(_) => {
+                solver.includes(Cell::Volatile, Place::Register(inst.id))
+            }
             crate::inst::InstructionType::Alloca(_) => {
-                solver.includes(Cell(inst.id), Place::Register(inst.id))
+                solver.includes(Cell::Alloc(inst.id), Place::Register(inst.id))
             }
             crate::inst::InstructionType::Mov(Reg(reg)) => {
                 solver.add_edge(Place::Register(reg), Place::Register(inst.id))
@@ -83,7 +89,7 @@ impl<'a> AndersenAnalysis<'a> {
 
                 for mem in self.get_memory() {
                     solver.includes_implies(
-                        Cell(mem),
+                        Cell::Alloc(mem),
                         Place::Memory(addr),
                         Place::Memory(mem),
                         Place::Register(inst.id),
@@ -96,7 +102,7 @@ impl<'a> AndersenAnalysis<'a> {
                 solver.add_edge(Place::Register(reg), Place::Memory(addr));
                 for mem in self.get_memory() {
                     solver.includes_implies(
-                        Cell(mem),
+                        Cell::Alloc(mem),
                         Place::Memory(addr),
                         Place::Register(reg),
                         Place::Memory(mem),
