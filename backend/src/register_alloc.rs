@@ -127,6 +127,7 @@ impl LinearAllocator {
         for block in prog.blocks.iter() {
             for inst_index in 0..block.len() {
                 let inst = &block[inst_index];
+                let (_, bb_index, _) = inst.id;
                 if self.used_ir.contains(&Rd::Ir(inst.id)) {
                     match &inst.data {
                         middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
@@ -134,17 +135,16 @@ impl LinearAllocator {
                                 .insert(inst.id, ValueCell::Value(self.stacksize));
                             self.stacksize += size;
                         }
-                        _ => self.allocate_reg(inst.id, &prog.blocks),
+                        _ => self.allocate_reg(inst.id, (inst.id.0, bb_index, inst_index), &prog.blocks),
                     }
                 }
-                let (_, bb_index, _) = inst.id;
                 self.used[bb_index][inst_index] = self.used_register.clone();
-                self.release(inst.id);
+                self.release((inst.id.0, bb_index, inst_index));
             }
         }
     }
 
-    fn allocate_reg(&mut self, reg: middleend::ir::Register, blocks: &Vec<BasicBlock>) {
+    fn allocate_reg(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -154,13 +154,13 @@ impl LinearAllocator {
             self.used_register.push(reg_name);
             let register = ValueCell::Register(reg_name);
             self.registers.insert(reg, register);
-            self.create_release(reg, blocks);
+            self.create_release(reg, place, blocks);
         }
     }
 
-    fn create_release(&mut self, reg: middleend::ir::Register, blocks: &Vec<BasicBlock>) {
+    fn create_release(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
         let (_, bb_start, inst_start) = reg;
-        let mut place = reg.clone();
+        let mut place = place;
         for bb_index in bb_start..blocks.len() {
             for inst_index in inst_start..blocks[bb_index].len() {
                 if self.liveness[bb_index][inst_index].contains(&reg) {

@@ -5,7 +5,7 @@ use middleend::{
 
 use crate::{insts::AsmInstruction, AsmFunctionBuilder};
 
-pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunctionBuilder) {
+pub fn basic_instruction_selection(inst: &Instruction, place : middleend::ir::InstUUID, builder: &mut AsmFunctionBuilder) {
     use crate::insts::Rd::*;
     let reg = inst.id;
     match &inst.data {
@@ -63,7 +63,7 @@ pub fn basic_instruction_selection(inst: &Instruction, builder: &mut AsmFunction
                 builder.add_instruction(AsmInstruction::Addi(ArgReg(i as u8), Ir(regs[i]), 0));
             }
             let offset = builder.force_store(Ra);
-            builder.add_instruction(AsmInstruction::Call(sym.clone(), inst.id));
+            builder.add_instruction(AsmInstruction::Call(sym.clone(), place));
             builder.add_instruction(AsmInstruction::Ld(Ra, Sp, offset));
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), ArgReg(0), 0));
         }
