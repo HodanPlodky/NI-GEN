@@ -1,4 +1,6 @@
-use crate::ir::{Register, BBIndex, Symbol};
+use std::collections::HashMap;
+
+use crate::ir::{BBIndex, Register, Symbol};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
@@ -105,6 +107,72 @@ impl InstructionType {
             _ => vec![],
         }
     }
+
+    pub fn rename_regs(&mut self, renames: &HashMap<Register, Register>) {
+        match self {
+            // unary (Reg)
+            InstructionType::Mov(Reg(reg))
+            | InstructionType::Branch(TerminatorBranch(reg, _, _))
+            | InstructionType::Retr(TerminatorReg(reg))
+            | InstructionType::Neg(Reg(reg))
+            | InstructionType::Print(Reg(reg))
+            | InstructionType::Ld(Reg(reg)) => {
+                if renames.contains_key(reg) {
+                    *reg = *renames.get(reg).unwrap();
+                }
+            }
+
+            // binary (RegReg)
+            InstructionType::Add(RegReg(a, b))
+            | InstructionType::Sub(RegReg(a, b))
+            | InstructionType::Mul(RegReg(a, b))
+            | InstructionType::Div(RegReg(a, b))
+            | InstructionType::Mod(RegReg(a, b))
+            | InstructionType::Shr(RegReg(a, b))
+            | InstructionType::Shl(RegReg(a, b))
+            | InstructionType::And(RegReg(a, b))
+            | InstructionType::Or(RegReg(a, b))
+            | InstructionType::Xor(RegReg(a, b))
+            | InstructionType::Lt(RegReg(a, b))
+            | InstructionType::Le(RegReg(a, b))
+            | InstructionType::Gt(RegReg(a, b))
+            | InstructionType::Ge(RegReg(a, b))
+            | InstructionType::Gep(RegRegImm(a, b, _))
+            | InstructionType::St(RegReg(a, b))
+            | InstructionType::Eql(RegReg(a, b)) => {
+                if renames.contains_key(a) {
+                    *a = *renames.get(a).unwrap();
+                }
+                if renames.contains_key(b) {
+                    *b = *renames.get(b).unwrap();
+                }
+            }
+
+            // one or multiple regs
+            InstructionType::Phi(RegRegs(reg, regs))
+            | InstructionType::Call(RegRegs(reg, regs)) => {
+                if renames.contains_key(reg) {
+                    *reg = *renames.get(reg).unwrap();
+                }
+
+                for i in 0..regs.len() {
+                    if renames.contains_key(&regs[i]) {
+                        regs[i] = *renames.get(&regs[i]).unwrap();
+                    }
+                }
+            }
+
+            InstructionType::CallDirect(SymRegs(_, regs)) => {
+                for i in 0..regs.len() {
+                    if renames.contains_key(&regs[i]) {
+                        regs[i] = *renames.get(&regs[i]).unwrap();
+                    }
+                }
+            },
+
+            _ => (),
+        }
+    }
 }
 
 // types of instructions
@@ -132,4 +200,3 @@ pub struct TerminatorJump(pub BBIndex);
 pub struct TerminatorBranch(pub Register, pub BBIndex, pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TerminatorReg(pub Register);
-

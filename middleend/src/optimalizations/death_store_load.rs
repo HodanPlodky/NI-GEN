@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use crate::{
     analysis::{
@@ -36,6 +36,8 @@ pub fn remove_store_load(function: &mut Function) {
     }
 
     remove_unused_stores(function);
+
+    remove_movs(function);
 
     remove_unused_instruction(function);
 }
@@ -99,6 +101,26 @@ fn remove_unused_stores(function: &mut Function) {
                     }
                 }
                 _ => inst_index += 1,
+            }
+        }
+    }
+}
+
+fn remove_movs(function : &mut Function) {
+    let mut renames : HashMap<Register, Register> = HashMap::new();
+    for bb_index in 0..function.blocks.len() {
+        let bb = &mut function.blocks[bb_index];
+        let mut inst_index = 0;
+        while inst_index < bb.len() {
+            match bb[inst_index].data {
+                InstructionType::Mov(Reg(reg)) => {
+                    renames.insert(bb[inst_index].id, reg);
+                    bb.remove(inst_index);
+                }
+                _ => {
+                    bb[inst_index].data.rename_regs(&renames);
+                    inst_index += 1
+                }
             }
         }
     }
