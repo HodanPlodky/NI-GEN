@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{BBIndex, Register, Symbol};
+use crate::ir::{BBIndex, Register, Symbol, RegType};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
@@ -11,7 +11,7 @@ pub enum InstructionType {
     St(RegReg), // [addr], reg
     Alloca(ImmI),
     Allocg(ImmI),
-    Gep(RegRegImm),
+    Gep(usize, RegRegImm), // [addr], index, offset
     Mov(Reg),
 
     // number binary
@@ -73,7 +73,7 @@ impl InstructionType {
             InstructionType::Ld(Reg(a)) => vec![*a],
             InstructionType::St(RegReg(a, b)) => vec![*a, *b],
             InstructionType::Mov(Reg(a)) => vec![*a],
-            InstructionType::Gep(RegRegImm(a, b, _)) => vec![*a, *b],
+            InstructionType::Gep(_, RegRegImm(a, b, _)) => vec![*a, *b],
             InstructionType::Add(RegReg(a, b)) => vec![*a, *b],
             InstructionType::Sub(RegReg(a, b)) => vec![*a, *b],
             InstructionType::Mul(RegReg(a, b)) => vec![*a, *b],
@@ -137,7 +137,7 @@ impl InstructionType {
             | InstructionType::Le(RegReg(a, b))
             | InstructionType::Gt(RegReg(a, b))
             | InstructionType::Ge(RegReg(a, b))
-            | InstructionType::Gep(RegRegImm(a, b, _))
+            | InstructionType::Gep(_, RegRegImm(a, b, _))
             | InstructionType::St(RegReg(a, b))
             | InstructionType::Eql(RegReg(a, b)) => {
                 if renames.contains_key(a) {

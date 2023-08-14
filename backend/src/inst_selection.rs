@@ -25,7 +25,7 @@ pub fn basic_instruction_selection(inst: &Instruction, place : middleend::ir::In
         &middleend::inst::InstructionType::Mov(Reg(rs1)) => {
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), Ir(rs1), 0))
         },
-        &middleend::inst::InstructionType::Gep(_) => todo!(),
+        &middleend::inst::InstructionType::Gep(_, _) => todo!(),
         &middleend::inst::InstructionType::Add(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Add(Ir(reg), Ir(rs1), Ir(rs2)));
         }

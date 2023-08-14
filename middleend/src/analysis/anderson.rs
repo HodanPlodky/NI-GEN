@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::cubicsolver::CubicSolver,
-    inst::{Reg, RegReg},
+    inst::{Reg, RegReg, RegRegImm},
     ir::{BasicBlock, Function, InstUUID, Instruction, Register},
 };
 
@@ -80,6 +80,9 @@ impl<'a> AndersenAnalysis<'a> {
             }
             crate::inst::InstructionType::Mov(Reg(reg)) => {
                 solver.add_edge(Place::Register(reg), Place::Register(inst.id))
+            }
+            crate::inst::InstructionType::Gep(_, RegRegImm(start, _, _)) => {
+                solver.add_edge(Place::Register(start), Place::Register(inst.id))
             }
             // anything that could be in the value it the
             // address of the [reg] could be also in the inst.id

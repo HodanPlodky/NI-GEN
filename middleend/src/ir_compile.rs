@@ -8,10 +8,12 @@ use frontend::{
 };
 
 use crate::{
+    builder::{FunctionBuilder, IrBuilder, IrBuilderError},
     inst::{
-        ImmC, ImmI, Reg, RegReg, RegRegs, SymRegs, Terminator, TerminatorBranch,
-        TerminatorJump, TerminatorReg, InstructionType,
-    }, ir::{IrProgram, Register, RegType}, builder::{IrBuilderError, IrBuilder, FunctionBuilder},
+        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs, Terminator,
+        TerminatorBranch, TerminatorJump, TerminatorReg,
+    },
+    ir::{IrProgram, RegType, Register},
 };
 
 pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
@@ -151,7 +153,19 @@ impl IrCompiler {
                     }
                 }
             }
-            ExprType::Index(_, _) => todo!(),
+            ExprType::Index(e, index) => {
+                let start = self.compile_expr(e, f_b)?;
+                let index = self.compile_expr(index, f_b)?;
+                let addr = f_b.add(
+                    I::Gep(
+                        IrCompiler::get_type_size(&expr.get_type()),
+                        RegRegImm(start, index, 0),
+                    ),
+                    RegType::Int,
+                );
+
+                Ok(f_b.add(I::Ld(Reg(addr)), expr.get_type().into()))
+            }
             ExprType::Deref(pointer) => {
                 let reg = self.compile_expr(pointer, f_b)?;
                 Ok(f_b.add(I::Ld(Reg(reg)), expr.get_type().into()))
@@ -195,6 +209,17 @@ impl IrCompiler {
         let reg_store = match &store.value {
             ExprType::Ident(name) => self.get_addreg(name.clone()),
             ExprType::Deref(e) => self.compile_expr(e, f_b),
+            ExprType::Index(e, index) => {
+                let start = self.compile_expr(e, f_b)?;
+                let index = self.compile_expr(index, f_b)?;
+                Ok(f_b.add(
+                    I::Gep(
+                        IrCompiler::get_type_size(&store.get_type()),
+                        RegRegImm(start, index, 0),
+                    ),
+                    RegType::Int,
+                ))
+            }
             _ => todo!(),
         }?;
         let reg_val = self.compile_expr(expr, f_b)?;
@@ -202,12 +227,8 @@ impl IrCompiler {
         Ok(())
     }
 
-    fn compile_vardecl(
-        &mut self,
-        decl: &VarDecl,
-        f_b: &mut FunctionBuilder,
-    ) -> Result<(), IrCompErr> {
-        let size = match decl.value.var_type {
+    fn get_type_size(type_def: &TypeDef) -> usize {
+        match type_def {
             TypeDef::Void => unreachable!(),
             TypeDef::PrimType(PrimType::Int) => 8,
             TypeDef::PrimType(PrimType::Char) => 1,
@@ -215,8 +236,18 @@ impl IrCompiler {
             TypeDef::Function(_) => todo!(),
             TypeDef::Alias(_) => todo!(),
             TypeDef::Struct(_) => todo!(),
-            TypeDef::Array(_) => todo!(),
-        };
+            TypeDef::Array(array_type) => {
+                array_type.index * IrCompiler::get_type_size(&array_type.inner_type)
+            }
+        }
+    }
+
+    fn compile_vardecl(
+        &mut self,
+        decl: &VarDecl,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<(), IrCompErr> {
+        let size = IrCompiler::get_type_size(&decl.value.var_type) as i64;
         let reg = f_b.add(I::Alloca(ImmI(size)), RegType::Int);
         self.env.last_mut().unwrap().insert(decl.name.clone(), reg);
         if let Some(init_val) = &decl.value.init_val {

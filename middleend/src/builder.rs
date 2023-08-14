@@ -126,7 +126,7 @@ impl FunctionBuilder {
             blocks: self.blocks,
         };
 
-        remove_store_load(&mut result);
+        //remove_store_load(&mut result);
 
         result
     }

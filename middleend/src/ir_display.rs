@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     inst::{
-        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegs, SymRegs, TerminatorBranch,
+        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs, TerminatorBranch,
         TerminatorJump, TerminatorReg,
     },
     ir::{BasicBlock, Function, Instruction, IrProgram, RegType, Register},
@@ -28,7 +28,14 @@ impl Display for InstructionType {
             InstructionType::Alloca(ImmI(n)) => write!(f, "alloca {}", n),
             InstructionType::Allocg(_) => todo!(),
             InstructionType::Mov(Reg(reg)) => write!(f, "mov {}", reg_view(*reg)),
-            InstructionType::Gep(_) => todo!(),
+            InstructionType::Gep(size, RegRegImm(start, index, imm)) => write!(
+                f,
+                "gep <{}> [{}] {} {}",
+                size,
+                reg_view(*start),
+                reg_view(*index),
+                imm
+            ),
             InstructionType::Add(RegReg(l, r)) => {
                 write!(f, "add {} {}", reg_view(*l), reg_view(*r))
             }

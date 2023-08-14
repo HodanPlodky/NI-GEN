@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     inst::{
-        ImmC, ImmI, InstructionType, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump,
-        TerminatorReg,
+        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch,
+        TerminatorJump, TerminatorReg,
     },
     ir::{BBIndex, BasicBlock, Function, Instruction, IrProgram, RegType, Register},
 };
@@ -327,7 +327,24 @@ impl Interpret {
                     let val = self.get(*reg)?;
                     self.set(inst.id, val)?
                 }
-                InstructionType::Gep(_) => todo!(),
+                InstructionType::Gep(size, RegRegImm(start, index, offset)) => {
+                    let start = self.get(*start)?;
+                    let index = self.get(*index)?;
+                    let (start, index) = match (start, index) {
+                        (Value::Signed(start), Value::Signed(index)) => Ok((start, index)),
+                        _ => Err(InterpretError::InvalidOp(inst.clone())),
+                    }?;
+                    let val = match inst.reg_type {
+                        RegType::Void => Err(InterpretError::VoidRegister(inst.clone())),
+                        RegType::Int => self
+                            .mem
+                            .read_int(Value::Signed(start + *size as i64 * index + *offset)),
+                        RegType::Char => self
+                            .mem
+                            .read_char(Value::Signed(start + *size as i64 * index + *offset)),
+                    }?;
+                    self.set(inst.id, val)?
+                }
                 InstructionType::Add(regs) => {
                     self.binary_op(inst.clone(), *regs, &|a, b| a + b, &|a, b| a + b)?
                 }
