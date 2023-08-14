@@ -159,7 +159,7 @@ impl LinearAllocator {
     }
 
     fn create_release(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
-        let (_, bb_start, inst_start) = reg;
+        let (_, bb_start, inst_start) = place;
         let mut place = place;
         for bb_index in bb_start..blocks.len() {
             for inst_index in inst_start..blocks[bb_index].len() {
