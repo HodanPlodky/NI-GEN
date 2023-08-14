@@ -9,9 +9,8 @@ mod register_alloc;
 use backend_ir::{AsmFunction, AsmProgram};
 use fn_builder::AsmFunctionBuilder;
 use inst_selection::basic_instruction_selection;
-use insts::AsmInstruction;
 use middleend::{
-    inst::BasicBlock,
+    ir::BasicBlock,
     ir::{Function, IrProgram},
 };
 use peepholer::{MockDatabase, PeepHoler};
@@ -49,5 +48,6 @@ fn asm_basicblock(block: &BasicBlock, builder: &mut AsmFunctionBuilder) {
     builder.actual_bb = builder.create_block();
     block
         .iter()
-        .for_each(|x| basic_instruction_selection(x, builder))
+        .zip(0..)
+        .for_each(|(x, inst_index)| basic_instruction_selection(x, (x.id.0, x.id.1, inst_index), builder))
 }

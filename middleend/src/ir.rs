@@ -3,7 +3,122 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::inst::{BBIndex, BasicBlock, InstUUID, Instruction, InstructionType, RegType, Register};
+use frontend::ast::AstData;
+
+use crate::inst::{InstructionType, TerminatorBranch, TerminatorJump};
+
+/// Id of the instruction
+/// the bool flag signifies if the instruction
+/// is part of the global space
+pub type InstUUID = (bool, usize, usize);
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Instruction {
+    pub id: InstUUID,
+    pub reg_type: RegType,
+    pub ast_data: Option<AstData>,
+    pub data: InstructionType,
+}
+
+impl Instruction {
+    pub fn new(
+        id: InstUUID,
+        reg_type: RegType,
+        ast_data: Option<AstData>,
+        data: InstructionType,
+    ) -> Self {
+        Self {
+            id,
+            reg_type,
+            ast_data,
+            data,
+        }
+    }
+}
+
+impl From<Instruction> for Register {
+    fn from(value: Instruction) -> Self {
+        return value.id;
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum RegType {
+    Void,
+    Int,
+    Char,
+}
+
+pub type Register = InstUUID;
+pub type Symbol = String;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct BasicBlock {
+    predecesors: Vec<BBIndex>,
+    pub instruction: Vec<Instruction>,
+}
+
+impl Default for BasicBlock {
+    fn default() -> Self {
+        Self {
+            predecesors: vec![],
+            instruction: vec![],
+        }
+    }
+}
+
+impl Deref for BasicBlock {
+    type Target = Vec<Instruction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.instruction
+    }
+}
+
+impl DerefMut for BasicBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.instruction
+    }
+}
+
+impl BasicBlock {
+    pub fn add_predecesor(&mut self, predecesor: BBIndex) {
+        self.predecesors.push(predecesor)
+    }
+
+    pub fn pred(&self) -> Vec<BBIndex> {
+        self.predecesors.clone()
+    }
+
+    pub fn succ(&self) -> Vec<BBIndex> {
+        use InstructionType::*;
+        let inst = match self.last() {
+            Some(inst) => inst,
+            None => return vec![],
+        };
+        match &inst.data {
+            Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
+            Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
+                vec![*bbindex_true, *bbindex_false]
+            }
+            _ => [].to_vec(),
+        }
+    }
+
+    pub fn get_used_regs(&self) -> Vec<Register> {
+        self.iter().map(|x| x.data.get_regs()).flatten().collect()
+    }
+
+    pub fn terminated(&self) -> bool {
+        if self.is_empty() {
+            false
+        } else {
+            self.last().unwrap().data.terminator()
+        }
+    }
+}
+
+pub type BBIndex = usize;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Function {
@@ -16,6 +131,10 @@ pub struct Function {
 impl Function {
     pub fn start(&self) -> &BasicBlock {
         &self.blocks[0]
+    }
+
+    pub fn get_used_regs(&self) -> Vec<Register> {
+        self.iter().map(|x| x.get_used_regs()).flatten().collect()
     }
 }
 
@@ -61,154 +180,5 @@ impl Default for IrProgram {
             },
             funcs: HashMap::new(),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct IrBuilder {
-    global: Function,
-    prog: IrProgram,
-}
-
-impl Default for IrBuilder {
-    fn default() -> Self {
-        Self {
-            global: Function {
-                name: "global".to_string(),
-                arg_count: 0,
-                ret_type: RegType::Void,
-                blocks: vec![BasicBlock::default()],
-            },
-            prog: IrProgram::default(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum IrBuilderError {
-    BasicBlockNotTerminated,
-    NotGlobalBB,
-    GlobalBBInFn,
-    NotInFunction,
-    NotFunction,
-    CannotCreateId,
-    FuncRedef,
-}
-
-// for better writing
-pub type I = InstructionType;
-
-impl IrBuilder {
-    fn get_id(&self) -> InstUUID {
-        (true, 0, self.global.blocks[0].len())
-    }
-
-    pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {
-        if self.prog.funcs.contains_key(&func.name.to_string()) {
-            return Err(IrBuilderError::FuncRedef);
-        }
-        self.prog.funcs.insert(func.name.to_string(), func);
-        Ok(())
-    }
-
-    pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
-        let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, None, inst);
-        self.global.blocks[0].push(inst);
-        id
-    }
-
-    pub fn add_astdata(&self, _inst: InstructionType) {
-        // this is just for better comp so fuck it
-        todo!()
-    }
-
-    pub fn create(self) -> IrProgram {
-        let mut tmp = self;
-        tmp.prog.glob = std::mem::take(&mut tmp.global);
-        tmp.prog
-    }
-}
-
-pub struct FunctionBuilder {
-    arg_count: u64,
-    ret_type: RegType,
-    act_bb: BBIndex,
-    blocks: Vec<BasicBlock>,
-}
-
-impl FunctionBuilder {
-    pub fn new(arg_count: u64, ret_type: RegType) -> Self {
-        Self {
-            arg_count,
-            ret_type,
-            act_bb: 0,
-            blocks: vec![BasicBlock::default()],
-        }
-    }
-
-    pub fn get_id(&self) -> InstUUID {
-        (false, self.act_bb, self.blocks[self.act_bb].len())
-    }
-
-    pub fn create_bb(&mut self) -> BBIndex {
-        self.blocks.push(BasicBlock::default());
-        self.blocks.len() - 1
-    }
-
-    pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
-        let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, None, inst);
-        self.blocks[self.act_bb].push(inst);
-        id
-    }
-
-    pub fn set_bb(&mut self, bi: BBIndex) {
-        self.act_bb = bi;
-    }
-
-    pub fn get_act_bb(&self) -> BBIndex {
-        self.act_bb
-    }
-
-    /// needed for dataflow analysis
-    pub fn set_predecesors(&mut self, to: BBIndex, preds: &[BBIndex]) {
-        for pred in preds {
-            self.blocks[to].add_predecesor(*pred)
-        }
-    }
-
-    pub fn terminated(&self) -> bool {
-        self.blocks[self.act_bb].terminated()
-    }
-
-    pub fn create(self, name: &str) -> Function {
-        Function {
-            name: name.to_string(),
-            arg_count: self.arg_count,
-            ret_type: self.ret_type,
-            blocks: self.blocks,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::inst::{ImmI, Reg, Terminator, TerminatorJump};
-
-    use super::*;
-
-    #[test]
-    fn correct_builder_api() {
-        let mut builder = IrBuilder::default();
-        let reg: Register = builder.add(I::Ldi(ImmI(5)), RegType::Int);
-        builder.add(I::Ret(Terminator), RegType::Void);
-        let mut fn_b = FunctionBuilder::new(0, RegType::Void);
-        let bi = fn_b.create_bb();
-        fn_b.add(I::Jmp(TerminatorJump(bi)), RegType::Void);
-        fn_b.set_bb(bi);
-        fn_b.add(I::Print(Reg(reg)), RegType::Void);
-        fn_b.add(I::Ret(Terminator), RegType::Void);
-        builder.add_fn(fn_b.create("main")).unwrap();
     }
 }

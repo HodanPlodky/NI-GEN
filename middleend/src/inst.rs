@@ -1,6 +1,6 @@
-use std::ops::{Deref, DerefMut};
+use std::collections::HashMap;
 
-use frontend::ast::AstData;
+use crate::ir::{BBIndex, Register, Symbol};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
@@ -8,11 +8,11 @@ pub enum InstructionType {
     Ldi(ImmI),
     Ldc(ImmC),
     Ld(Reg),
-    St(RegReg),
+    St(RegReg), // [addr], reg
     Alloca(ImmI),
     Allocg(ImmI),
-    Cpy(RegRegImm),
     Gep(RegRegImm),
+    Mov(Reg),
 
     // number binary
     Add(RegReg),
@@ -72,7 +72,7 @@ impl InstructionType {
         match self {
             InstructionType::Ld(Reg(a)) => vec![*a],
             InstructionType::St(RegReg(a, b)) => vec![*a, *b],
-            InstructionType::Cpy(RegRegImm(a, b, _)) => vec![*a, *b],
+            InstructionType::Mov(Reg(a)) => vec![*a],
             InstructionType::Gep(RegRegImm(a, b, _)) => vec![*a, *b],
             InstructionType::Add(RegReg(a, b)) => vec![*a, *b],
             InstructionType::Sub(RegReg(a, b)) => vec![*a, *b],
@@ -107,81 +107,73 @@ impl InstructionType {
             _ => vec![],
         }
     }
-}
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum RegType {
-    Void,
-    Int,
-    Char,
-}
-
-pub type Register = InstUUID;
-pub type Symbol = String;
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct BasicBlock {
-    predecesors: Vec<BBIndex>,
-    pub instruction: Vec<Instruction>,
-}
-
-impl Default for BasicBlock {
-    fn default() -> Self {
-        Self {
-            predecesors: vec![],
-            instruction: vec![],
-        }
-    }
-}
-
-impl Deref for BasicBlock {
-    type Target = Vec<Instruction>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.instruction
-    }
-}
-
-impl DerefMut for BasicBlock {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.instruction
-    }
-}
-
-impl BasicBlock {
-    pub fn add_predecesor(&mut self, predecesor: BBIndex) {
-        self.predecesors.push(predecesor)
-    }
-
-    pub fn pred(&self) -> Vec<BBIndex> {
-        self.predecesors.clone()
-    }
-
-    pub fn succ(&self) -> Vec<BBIndex> {
-        use InstructionType::*;
-        let inst = match self.last() {
-            Some(inst) => inst,
-            None => return vec![],
-        };
-        match &inst.data {
-            Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
-            Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
-                vec![*bbindex_true, *bbindex_false]
+    pub fn rename_regs(&mut self, renames: &HashMap<Register, Register>) {
+        match self {
+            // unary (Reg)
+            InstructionType::Mov(Reg(reg))
+            | InstructionType::Branch(TerminatorBranch(reg, _, _))
+            | InstructionType::Retr(TerminatorReg(reg))
+            | InstructionType::Neg(Reg(reg))
+            | InstructionType::Print(Reg(reg))
+            | InstructionType::Ld(Reg(reg)) => {
+                if renames.contains_key(reg) {
+                    *reg = *renames.get(reg).unwrap();
+                }
             }
-            _ => [].to_vec(),
-        }
-    }
 
-    pub fn terminated(&self) -> bool {
-        if self.is_empty() {
-            false
-        } else {
-            self.last().unwrap().data.terminator()
+            // binary (RegReg)
+            InstructionType::Add(RegReg(a, b))
+            | InstructionType::Sub(RegReg(a, b))
+            | InstructionType::Mul(RegReg(a, b))
+            | InstructionType::Div(RegReg(a, b))
+            | InstructionType::Mod(RegReg(a, b))
+            | InstructionType::Shr(RegReg(a, b))
+            | InstructionType::Shl(RegReg(a, b))
+            | InstructionType::And(RegReg(a, b))
+            | InstructionType::Or(RegReg(a, b))
+            | InstructionType::Xor(RegReg(a, b))
+            | InstructionType::Lt(RegReg(a, b))
+            | InstructionType::Le(RegReg(a, b))
+            | InstructionType::Gt(RegReg(a, b))
+            | InstructionType::Ge(RegReg(a, b))
+            | InstructionType::Gep(RegRegImm(a, b, _))
+            | InstructionType::St(RegReg(a, b))
+            | InstructionType::Eql(RegReg(a, b)) => {
+                if renames.contains_key(a) {
+                    *a = *renames.get(a).unwrap();
+                }
+                if renames.contains_key(b) {
+                    *b = *renames.get(b).unwrap();
+                }
+            }
+
+            // one or multiple regs
+            InstructionType::Phi(RegRegs(reg, regs))
+            | InstructionType::Call(RegRegs(reg, regs)) => {
+                if renames.contains_key(reg) {
+                    *reg = *renames.get(reg).unwrap();
+                }
+
+                for i in 0..regs.len() {
+                    if renames.contains_key(&regs[i]) {
+                        regs[i] = *renames.get(&regs[i]).unwrap();
+                    }
+                }
+            }
+
+            InstructionType::CallDirect(SymRegs(_, regs)) => {
+                for i in 0..regs.len() {
+                    if renames.contains_key(&regs[i]) {
+                        regs[i] = *renames.get(&regs[i]).unwrap();
+                    }
+                }
+            },
+
+            _ => (),
         }
     }
 }
-
-pub type BBIndex = usize;
 
 // types of instructions
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -189,7 +181,7 @@ pub struct ImmI(pub i64);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmC(pub char);
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ImmS(pub Symbol);
+pub struct ImmS(pub String);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Reg(pub Register);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -208,38 +200,3 @@ pub struct TerminatorJump(pub BBIndex);
 pub struct TerminatorBranch(pub Register, pub BBIndex, pub BBIndex);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TerminatorReg(pub Register);
-
-/// Id of the instruction
-/// the bool flag signifies if the instruction
-/// is part of the global space
-pub type InstUUID = (bool, usize, usize);
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Instruction {
-    pub id: InstUUID,
-    pub reg_type: RegType,
-    pub ast_data: Option<AstData>,
-    pub data: InstructionType,
-}
-
-impl Instruction {
-    pub fn new(
-        id: InstUUID,
-        reg_type: RegType,
-        ast_data: Option<AstData>,
-        data: InstructionType,
-    ) -> Self {
-        Self {
-            id,
-            reg_type,
-            ast_data,
-            data,
-        }
-    }
-}
-
-impl From<Instruction> for Register {
-    fn from(value: Instruction) -> Self {
-        return value.id;
-    }
-}

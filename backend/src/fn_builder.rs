@@ -1,13 +1,10 @@
 use std::collections::HashSet;
 
-use middleend::{
-    analysis::{DataFlowAnalysis, LiveRegisterAnalysis},
-    ir::Function,
-};
+use middleend::{ir::Function, analysis::{live::LiveRegisterAnalysis, dataflow::DataFlowAnalysis}};
 
 use crate::{
     backend_ir::AsmBasicBlock,
-    insts::{AsmInstruction, Offset, Rd},
+    insts::{ Offset, Rd, AsmInstruction},
     peepholer::PeepHoler,
     register_alloc::{LinearAllocator, RegAllocator, ValueCell},
     AsmFunction,
@@ -18,7 +15,7 @@ pub struct AsmFunctionBuilder<'a> {
     stacksize: usize,
     pub actual_bb: usize,
     blocks: Vec<AsmBasicBlock>,
-    liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
+    liveness: Vec<Vec<HashSet<middleend::ir::Register>>>,
 
     freetemp: Vec<usize>,
     ir_function: &'a Function,

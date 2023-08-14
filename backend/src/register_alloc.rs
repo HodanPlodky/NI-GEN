@@ -2,7 +2,7 @@
 #[allow(dead_code)]
 use std::collections::{HashMap, HashSet};
 
-use middleend::inst::BasicBlock;
+use middleend::ir::BasicBlock;
 
 use crate::insts::Rd;
 
@@ -14,8 +14,8 @@ pub enum ValueCell {
 }
 
 pub trait RegAllocator {
-    fn get_location(&self, reg: middleend::inst::Register) -> ValueCell;
-    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize>;
+    fn get_location(&self, reg: middleend::ir::Register) -> ValueCell;
+    fn get_used(&self, inst: middleend::ir::InstUUID) -> &Vec<usize>;
     fn get_stacksize(&self) -> usize;
 }
 
@@ -24,7 +24,7 @@ pub trait RegAllocator {
 /// usage of this allocator
 pub struct NaiveAllocator {
     freeowned: Vec<usize>,
-    registers: HashMap<middleend::inst::Register, ValueCell>,
+    registers: HashMap<middleend::ir::Register, ValueCell>,
     stacksize: i64,
 }
 
@@ -55,7 +55,7 @@ impl NaiveAllocator {
         }
     }
 
-    fn allocate_reg(&mut self, reg: middleend::inst::Register) {
+    fn allocate_reg(&mut self, reg: middleend::ir::Register) {
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -68,11 +68,11 @@ impl NaiveAllocator {
 }
 
 impl RegAllocator for NaiveAllocator {
-    fn get_location(&self, reg: middleend::inst::Register) -> ValueCell {
+    fn get_location(&self, reg: middleend::ir::Register) -> ValueCell {
         self.registers[&reg]
     }
 
-    fn get_used(&self, _inst: middleend::inst::InstUUID) -> &Vec<usize> {
+    fn get_used(&self, _inst: middleend::ir::InstUUID) -> &Vec<usize> {
         todo!()
     }
 
@@ -84,11 +84,11 @@ impl RegAllocator for NaiveAllocator {
 /// First gets the space but it only has
 /// is for a duration of the lifetime of the ir register
 pub struct LinearAllocator {
-    liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
+    liveness: Vec<Vec<HashSet<middleend::ir::Register>>>,
     freeowned: Vec<usize>,
     used_register: Vec<usize>,
-    registers: HashMap<middleend::inst::Register, ValueCell>,
-    release: Vec<Vec<Vec<middleend::inst::Register>>>,
+    registers: HashMap<middleend::ir::Register, ValueCell>,
+    release: Vec<Vec<Vec<middleend::ir::Register>>>,
     used: Vec<Vec<Vec<usize>>>,
     used_ir: HashSet<Rd>,
     stacksize: i64,
@@ -99,7 +99,7 @@ impl LinearAllocator {
         function: &middleend::ir::Function,
         used_ir: HashSet<Rd>,
         stacksize: i64,
-        liveness: Vec<Vec<HashSet<middleend::inst::Register>>>,
+        liveness: Vec<Vec<HashSet<middleend::ir::Register>>>,
     ) -> Self {
         let mut res = Self {
             liveness,
@@ -125,7 +125,9 @@ impl LinearAllocator {
 
     fn allocate(&mut self, prog: &middleend::ir::Function) {
         for block in prog.blocks.iter() {
-            for inst in block.iter() {
+            for inst_index in 0..block.len() {
+                let inst = &block[inst_index];
+                let (_, bb_index, _) = inst.id;
                 if self.used_ir.contains(&Rd::Ir(inst.id)) {
                     match &inst.data {
                         middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
@@ -133,17 +135,16 @@ impl LinearAllocator {
                                 .insert(inst.id, ValueCell::Value(self.stacksize));
                             self.stacksize += size;
                         }
-                        _ => self.allocate_reg(inst.id, &prog.blocks),
+                        _ => self.allocate_reg(inst.id, (inst.id.0, bb_index, inst_index), &prog.blocks),
                     }
                 }
-                let (_, bb_index, inst_index) = inst.id;
                 self.used[bb_index][inst_index] = self.used_register.clone();
-                self.release(inst.id);
+                self.release((inst.id.0, bb_index, inst_index));
             }
         }
     }
 
-    fn allocate_reg(&mut self, reg: middleend::inst::Register, blocks: &Vec<BasicBlock>) {
+    fn allocate_reg(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -153,13 +154,13 @@ impl LinearAllocator {
             self.used_register.push(reg_name);
             let register = ValueCell::Register(reg_name);
             self.registers.insert(reg, register);
-            self.create_release(reg, blocks);
+            self.create_release(reg, place, blocks);
         }
     }
 
-    fn create_release(&mut self, reg: middleend::inst::Register, blocks: &Vec<BasicBlock>) {
-        let (_, bb_start, inst_start) = reg;
-        let mut place = reg.clone();
+    fn create_release(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
+        let (_, bb_start, inst_start) = place;
+        let mut place = place;
         for bb_index in bb_start..blocks.len() {
             for inst_index in inst_start..blocks[bb_index].len() {
                 if self.liveness[bb_index][inst_index].contains(&reg) {
@@ -171,7 +172,7 @@ impl LinearAllocator {
         self.release[bb_index][inst_index].push(reg);
     }
 
-    fn release(&mut self, reg: middleend::inst::Register) {
+    fn release(&mut self, reg: middleend::ir::Register) {
         let (_, bb_index, inst_index) = reg;
         for rel_reg in self.release[bb_index][inst_index].iter() {
             match self.get_location(*rel_reg) {
@@ -191,11 +192,11 @@ impl LinearAllocator {
 }
 
 impl RegAllocator for LinearAllocator {
-    fn get_location(&self, reg: middleend::inst::Register) -> ValueCell {
+    fn get_location(&self, reg: middleend::ir::Register) -> ValueCell {
         self.registers[&reg]
     }
 
-    fn get_used(&self, inst: middleend::inst::InstUUID) -> &Vec<usize> {
+    fn get_used(&self, inst: middleend::ir::InstUUID) -> &Vec<usize> {
         let (_, bb_index, inst_index) = inst;
         &self.used[bb_index][inst_index]
     }

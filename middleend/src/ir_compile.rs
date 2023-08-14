@@ -9,16 +9,18 @@ use frontend::{
 
 use crate::{
     inst::{
-        ImmC, ImmI, Reg, RegReg, RegRegs, RegType, Register, SymRegs, Terminator, TerminatorBranch,
-        TerminatorJump, TerminatorReg,
-    },
-    ir::{FunctionBuilder, IrBuilder, IrBuilderError, IrProgram, I},
+        ImmC, ImmI, Reg, RegReg, RegRegs, SymRegs, Terminator, TerminatorBranch,
+        TerminatorJump, TerminatorReg, InstructionType,
+    }, ir::{IrProgram, Register, RegType}, builder::{IrBuilderError, IrBuilder, FunctionBuilder},
 };
 
 pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
     let mut compiler = IrCompiler::default();
     compiler.compile(program)
 }
+
+// for better writing
+type I = InstructionType;
 
 // name to register with address
 type Env = HashMap<String, Register>;
@@ -284,7 +286,7 @@ impl IrCompiler {
                 let check_bb = f_b.create_bb();
                 let body_bb = f_b.create_bb();
                 let after_bb = f_b.create_bb();
-                f_b.set_predecesors(check_bb, &[f_b.get_act_bb(), body_bb]);
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb()]);
                 f_b.set_predecesors(body_bb, &[check_bb]);
                 f_b.set_predecesors(after_bb, &[check_bb]);
 
@@ -308,6 +310,7 @@ impl IrCompiler {
                 if let Some(after) = after {
                     self.compile_stmt(after, f_b)?;
                 }
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb()]);
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
 
                 f_b.set_bb(after_bb);
@@ -316,13 +319,14 @@ impl IrCompiler {
                 let check_bb = f_b.create_bb();
                 let body_bb = f_b.create_bb();
                 let after_bb = f_b.create_bb();
-                f_b.set_predecesors(check_bb, &[f_b.get_act_bb(), body_bb]);
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb()]);
                 f_b.set_predecesors(body_bb, &[check_bb]);
                 f_b.set_predecesors(after_bb, &[check_bb]);
 
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
                 f_b.set_bb(check_bb);
                 let guard_reg = self.compile_expr(guard, f_b)?;
+                f_b.set_bb(check_bb);
 
                 f_b.add(
                     I::Branch(TerminatorBranch(guard_reg, body_bb, after_bb)),
@@ -330,6 +334,7 @@ impl IrCompiler {
                 );
                 f_b.set_bb(body_bb);
                 self.compile_stmt(body, f_b)?;
+                f_b.set_predecesors(check_bb, &[f_b.get_act_bb()]);
                 f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
                 f_b.set_bb(after_bb);
             }
