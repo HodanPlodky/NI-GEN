@@ -1,11 +1,17 @@
 use middleend::{
-    inst::{ImmI, Reg, RegReg, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg},
+    inst::{
+        ImmI, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+    },
     ir::Instruction,
 };
 
 use crate::{insts::AsmInstruction, AsmFunctionBuilder};
 
-pub fn basic_instruction_selection(inst: &Instruction, place : middleend::ir::InstUUID, builder: &mut AsmFunctionBuilder) {
+pub fn basic_instruction_selection(
+    inst: &Instruction,
+    place: middleend::ir::InstUUID,
+    builder: &mut AsmFunctionBuilder,
+) {
     use crate::insts::Rd::*;
     let reg = inst.id;
     match &inst.data {
@@ -24,8 +30,13 @@ pub fn basic_instruction_selection(inst: &Instruction, place : middleend::ir::In
         &middleend::inst::InstructionType::Allocg(_) => todo!(),
         &middleend::inst::InstructionType::Mov(Reg(rs1)) => {
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), Ir(rs1), 0))
-        },
-        &middleend::inst::InstructionType::Gep(_, _) => todo!(),
+        }
+        &middleend::inst::InstructionType::Gep(size, RegRegImm(addr, index, offset)) => {
+            builder.add_instruction(AsmInstruction::Addi(Arch(31), Zero, size as i64));
+            builder.add_instruction(AsmInstruction::Mul(Arch(31), Arch(31), Ir(index)));
+            builder.add_instruction(AsmInstruction::Add(Arch(31), Ir(addr), Arch(31)));
+            builder.add_instruction(AsmInstruction::Addi(Arch(31), Arch(31), offset));
+        }
         &middleend::inst::InstructionType::Add(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Add(Ir(reg), Ir(rs1), Ir(rs2)));
         }

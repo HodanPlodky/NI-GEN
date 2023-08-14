@@ -154,7 +154,7 @@ impl IrCompiler {
                 }
             }
             ExprType::Index(e, index) => {
-                let start = self.compile_expr(e, f_b)?;
+                let start = self.compile_lvalue(e, f_b)?;
                 let index = self.compile_expr(index, f_b)?;
                 let addr = f_b.add(
                     I::Gep(
@@ -200,17 +200,12 @@ impl IrCompiler {
         Ok(())
     }
 
-    fn compile_assign(
-        &mut self,
-        store: &Expr,
-        expr: &Expr,
-        f_b: &mut FunctionBuilder,
-    ) -> Result<(), IrCompErr> {
-        let reg_store = match &store.value {
+    fn compile_lvalue(&mut self, store : &Expr, f_b : &mut FunctionBuilder) -> Result<Register, IrCompErr> {
+        match &store.value {
             ExprType::Ident(name) => self.get_addreg(name.clone()),
             ExprType::Deref(e) => self.compile_expr(e, f_b),
             ExprType::Index(e, index) => {
-                let start = self.compile_expr(e, f_b)?;
+                let start = self.compile_lvalue(e, f_b)?;
                 let index = self.compile_expr(index, f_b)?;
                 Ok(f_b.add(
                     I::Gep(
@@ -221,7 +216,16 @@ impl IrCompiler {
                 ))
             }
             _ => todo!(),
-        }?;
+        }
+    }
+
+    fn compile_assign(
+        &mut self,
+        store: &Expr,
+        expr: &Expr,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<(), IrCompErr> {
+        let reg_store = self.compile_lvalue(store, f_b)?;
         let reg_val = self.compile_expr(expr, f_b)?;
         f_b.add(I::St(RegReg(reg_store, reg_val)), RegType::Void);
         Ok(())

@@ -265,6 +265,7 @@ impl Interpret {
         let (l, r) = (regs.0, regs.1);
         let l_val = self.get(l)?;
         let r_val = self.get(r)?;
+        //println!("{:?} {:?}", l_val, r_val);
         let val = match (l_val, r_val) {
             (Value::Signed(a), Value::Signed(b)) => Ok(Value::Signed(op_i64(a, b))),
             (Value::Char(a), Value::Char(b)) => Ok(Value::Char(op_u8(a, b))),
@@ -334,16 +335,11 @@ impl Interpret {
                         (Value::Signed(start), Value::Signed(index)) => Ok((start, index)),
                         _ => Err(InterpretError::InvalidOp(inst.clone())),
                     }?;
-                    let val = match inst.reg_type {
-                        RegType::Void => Err(InterpretError::VoidRegister(inst.clone())),
-                        RegType::Int => self
-                            .mem
-                            .read_int(Value::Signed(start + *size as i64 * index + *offset)),
-                        RegType::Char => self
-                            .mem
-                            .read_char(Value::Signed(start + *size as i64 * index + *offset)),
-                    }?;
-                    self.set(inst.id, val)?
+
+                    self.set(
+                        inst.id,
+                        Value::Signed(start + *size as i64 * index + *offset),
+                    )?
                 }
                 InstructionType::Add(regs) => {
                     self.binary_op(inst.clone(), *regs, &|a, b| a + b, &|a, b| a + b)?
