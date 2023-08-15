@@ -309,7 +309,6 @@ impl<'a> AsmFunctionBuilder<'a> {
             })
             .flatten()
             .collect();
-
         tmp
     }
 

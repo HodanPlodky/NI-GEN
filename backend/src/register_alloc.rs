@@ -193,6 +193,7 @@ impl LinearAllocator {
 
 impl RegAllocator for LinearAllocator {
     fn get_location(&self, reg: middleend::ir::Register) -> ValueCell {
+        //println!("{:?}", reg);
         self.registers[&reg]
     }
 

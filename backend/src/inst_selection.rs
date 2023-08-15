@@ -31,11 +31,18 @@ pub fn basic_instruction_selection(
         &middleend::inst::InstructionType::Mov(Reg(rs1)) => {
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), Ir(rs1), 0))
         }
+        // calculate position of the data in the memory similar to lea but created with riscv
+        // arch + size * index + offset
         &middleend::inst::InstructionType::Gep(size, RegRegImm(addr, index, offset)) => {
-            builder.add_instruction(AsmInstruction::Addi(Arch(31), Zero, size as i64));
-            builder.add_instruction(AsmInstruction::Mul(Arch(31), Arch(31), Ir(index)));
-            builder.add_instruction(AsmInstruction::Add(Arch(31), Ir(addr), Arch(31)));
-            builder.add_instruction(AsmInstruction::Addi(Arch(31), Arch(31), offset));
+            // load size
+            builder.add_instruction(AsmInstruction::Addi(Ir(inst.id), Zero, size as i64));
+            // size * index
+            builder.add_instruction(AsmInstruction::Mul(Ir(inst.id), Ir(inst.id), Ir(index)));
+            // addr + size * index
+            builder.add_instruction(AsmInstruction::Add(Ir(inst.id), Ir(addr), Ir(inst.id)));
+            // addr + size * index + offset
+            builder.add_instruction(AsmInstruction::Addi(Ir(inst.id), Ir(inst.id), offset));
+            builder.release_temp();
         }
         &middleend::inst::InstructionType::Add(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Add(Ir(reg), Ir(rs1), Ir(rs2)));

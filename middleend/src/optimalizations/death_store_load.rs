@@ -11,11 +11,13 @@ use crate::{
     ir::{Function, RegType, Register},
 };
 
-pub fn remove_store_load(function: &mut Function) {
+pub fn remove_store_load(function: &mut Function) -> bool {
     // rewrite loads into just copies
     // if possible
     let mut const_analysis = ConstantMemoryAnalysis::new(function);
     let result = const_analysis.analyze();
+
+    let mut change = false;
 
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
@@ -25,6 +27,7 @@ pub fn remove_store_load(function: &mut Function) {
                     let state = &result[bb_index][inst_index];
                     match state.get(&MemoryPlace(addr)) {
                         Some(FlatElem::Value(val)) => {
+                            change = true;
                             bb[inst_index].data = InstructionType::Mov(Reg(*val))
                         }
                         Some(_) | None => (),
@@ -35,14 +38,17 @@ pub fn remove_store_load(function: &mut Function) {
         }
     }
 
-    remove_unused_stores(function);
+    change |= remove_unused_stores(function);
 
-    remove_movs(function);
+    change |= remove_movs(function);
 
-    remove_unused_instruction(function);
+    change |= remove_unused_instruction(function);
+
+    change
 }
 
-fn remove_unused_instruction(function: &mut Function) {
+fn remove_unused_instruction(function: &mut Function) -> bool {
+    let mut change = false;
     let used = function.get_used_regs();
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
@@ -50,14 +56,18 @@ fn remove_unused_instruction(function: &mut Function) {
         while inst_index < bb.len() {
             if !used.contains(&bb[inst_index].id) && bb[inst_index].reg_type != RegType::Void {
                 bb.remove(inst_index);
+                change = true;
             } else {
                 inst_index += 1;
             }
         }
     }
+
+    change
 }
 
-fn remove_unused_stores(function: &mut Function) {
+fn remove_unused_stores(function: &mut Function) -> bool {
+    let mut change = false;
     let mut loads: Vec<Register> = vec![];
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
@@ -95,6 +105,7 @@ fn remove_unused_stores(function: &mut Function) {
                     };
 
                     if cells.is_disjoint(&loads) && !cells.contains(&Cell::Volatile) {
+                        change = true;
                         bb.remove(inst_index);
                     } else {
                         inst_index += 1;
@@ -104,9 +115,12 @@ fn remove_unused_stores(function: &mut Function) {
             }
         }
     }
+
+    change
 }
 
-fn remove_movs(function : &mut Function) {
+fn remove_movs(function : &mut Function) -> bool {
+    let mut change = false;
     let mut renames : HashMap<Register, Register> = HashMap::new();
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
@@ -116,6 +130,7 @@ fn remove_movs(function : &mut Function) {
                 InstructionType::Mov(Reg(reg)) => {
                     renames.insert(bb[inst_index].id, reg);
                     bb.remove(inst_index);
+                    change = true;
                 }
                 _ => {
                     bb[inst_index].data.rename_regs(&renames);
@@ -124,4 +139,5 @@ fn remove_movs(function : &mut Function) {
             }
         }
     }
+    change
 }

@@ -1,0 +1,19 @@
+global:
+function global(0) : void {
+BB0:
+	exit
+}
+function main(0) : int {
+BB0:
+	(0,0) : int = alloca 24
+	(0,1) : int = ldi 1
+	(0,2) : int = gep <8> [(0,0)] (0,1) 0
+	(0,3) : int = ldi 1
+	store [(0,2)] (0,3)
+	(0,5) : int = ldi 1
+	(0,6) : int = gep <8> [(0,0)] (0,5) 0
+	(0,7) : int = ld [(0,6)]
+	retr (0,7)
+}
+
+1
