@@ -12,17 +12,21 @@ void bubblesort(int * arr, int len) {
 
 int main() {
     int arr[5];
-    arr[0] = 2;
+    arr[0] = 3;
     arr[1] = 5;
     arr[2] = 1;
     arr[3] = 3;
     arr[4] = 4;
+
+    int x = 0;
     
     bubblesort(arr, 5);
 
     for (int i = 0; i < 5; i = i + 1) {
         if (arr[i] != i + 1)
-            return 1;
+            return arr[i];
+        x = x + arr[i];
     }
-    return 0;
+    arr[0] = x;
+    return arr[0];
 }

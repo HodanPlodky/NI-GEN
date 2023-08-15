@@ -193,14 +193,14 @@ impl Interpret {
 
     fn set(&mut self, reg: Register, value: Value) -> Result<(), InterpretError> {
         if self.locals.is_empty() {
-            if self.globals.contains_key(&reg) {
-                return Err(InterpretError::DoubleWrite(reg));
-            }
+            //if self.globals.contains_key(&reg) {
+                //return Err(InterpretError::DoubleWrite(reg));
+            //}
             self.globals.insert(reg, value);
         } else {
-            if self.locals.last().unwrap().contains_key(&reg) {
-                return Err(InterpretError::DoubleWrite(reg));
-            }
+            //if self.locals.last().unwrap().contains_key(&reg) {
+                //return Err(InterpretError::DoubleWrite(reg));
+            //}
             self.locals.last_mut().unwrap().insert(reg, value);
         }
         Ok(())

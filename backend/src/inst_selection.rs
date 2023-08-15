@@ -60,7 +60,9 @@ pub fn basic_instruction_selection(
         middleend::inst::InstructionType::And(_) => todo!(),
         middleend::inst::InstructionType::Or(_) => todo!(),
         middleend::inst::InstructionType::Xor(_) => todo!(),
-        middleend::inst::InstructionType::Neg(_) => todo!(),
+        &middleend::inst::InstructionType::Neg(Reg(rs1)) => {
+            builder.add_instruction(AsmInstruction::Sltiu(Ir(inst.id), Ir(rs1), 1));
+        },
         &middleend::inst::InstructionType::Le(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Addi(Arch(31), Ir(rs2), 1));
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Arch(31)));
@@ -68,9 +70,17 @@ pub fn basic_instruction_selection(
         &middleend::inst::InstructionType::Lt(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Ir(rs2)));
         }
-        &middleend::inst::InstructionType::Gt(_) => todo!(),
+        &middleend::inst::InstructionType::Gt(RegReg(rs1, rs2)) => {
+            builder.add_instruction(AsmInstruction::Addi(Arch(31), Ir(rs2), 1));
+            builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Arch(31)));
+            builder.add_instruction(AsmInstruction::Sltiu(Ir(reg), Ir(reg), 1));
+        },
         &middleend::inst::InstructionType::Ge(_) => todo!(),
-        &middleend::inst::InstructionType::Eql(_) => todo!(),
+        &middleend::inst::InstructionType::Eql(RegReg(rs1, rs2)) => {
+            builder.add_instruction(AsmInstruction::Sub(Ir(inst.id), Ir(rs1), Ir(rs2)));
+            // seqz rd, rs => sltiu rd, rs, 1 
+            builder.add_instruction(AsmInstruction::Sltiu(Ir(inst.id), Ir(inst.id), 1));
+        },
         &middleend::inst::InstructionType::Call(_) => todo!(),
         middleend::inst::InstructionType::CallDirect(SymRegs(sym, regs)) => {
             if regs.len() >= 8 {

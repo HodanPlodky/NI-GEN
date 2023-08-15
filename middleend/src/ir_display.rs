@@ -64,7 +64,7 @@ impl Display for InstructionType {
             InstructionType::Xor(RegReg(l, r)) => {
                 write!(f, "xor {} {}", reg_view(*l), reg_view(*r))
             }
-            InstructionType::Neg(_) => todo!(),
+            InstructionType::Neg(Reg(reg)) => write!(f, "neg {}", reg_view(*reg)),
             InstructionType::Lt(RegReg(l, r)) => write!(f, "lt {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Le(RegReg(l, r)) => write!(f, "le {} {}", reg_view(*l), reg_view(*r)),
             InstructionType::Gt(RegReg(l, r)) => write!(f, "gt {} {}", reg_view(*l), reg_view(*r)),

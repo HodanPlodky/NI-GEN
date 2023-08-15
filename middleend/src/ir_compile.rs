@@ -107,7 +107,10 @@ impl IrCompiler {
                     Operator::Gt => Ok(f_b.add(I::Gt(rr), expr.get_type().into())),
                     Operator::Ge => Ok(f_b.add(I::Ge(rr), expr.get_type().into())),
                     Operator::Eql => Ok(f_b.add(I::Eql(rr), expr.get_type().into())),
-                    Operator::Neq => todo!(),
+                    Operator::Neq => {
+                        let tmp_reg = f_b.add(I::Eql(rr), expr.get_type().into());
+                        Ok(f_b.add(I::Neg(Reg(tmp_reg)), expr.get_type().into()))
+                    }
                     Operator::Assign => todo!(),
                     Operator::BitOr => Ok(f_b.add(I::Or(rr), expr.get_type().into())),
                     Operator::Or => Ok(f_b.add(I::Or(rr), expr.get_type().into())),
@@ -200,7 +203,11 @@ impl IrCompiler {
         Ok(())
     }
 
-    fn compile_lvalue(&mut self, store : &Expr, f_b : &mut FunctionBuilder) -> Result<Register, IrCompErr> {
+    fn compile_lvalue(
+        &mut self,
+        store: &Expr,
+        f_b: &mut FunctionBuilder,
+    ) -> Result<Register, IrCompErr> {
         match &store.value {
             ExprType::Ident(name) => self.get_addreg(name.clone()),
             ExprType::Deref(e) => self.compile_expr(e, f_b),
@@ -328,6 +335,8 @@ impl IrCompiler {
                 if let Some(init) = init {
                     self.compile_stmt(init, f_b)?;
                 }
+
+                f_b.add(I::Jmp(TerminatorJump(check_bb)), RegType::Void);
 
                 f_b.set_bb(check_bb);
                 let guard_reg = if let Some(guard) = guard {
