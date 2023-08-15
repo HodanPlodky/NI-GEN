@@ -71,14 +71,13 @@ pub fn basic_instruction_selection(
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Ir(rs2)));
         }
         &middleend::inst::InstructionType::Gt(RegReg(rs1, rs2)) => {
-            builder.add_instruction(AsmInstruction::Addi(Arch(31), Ir(rs2), 1));
-            builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Arch(31)));
-            builder.add_instruction(AsmInstruction::Sltiu(Ir(reg), Ir(reg), 1));
+            builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs2), Ir(rs1)));
         },
         &middleend::inst::InstructionType::Ge(_) => todo!(),
         &middleend::inst::InstructionType::Eql(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Sub(Ir(inst.id), Ir(rs1), Ir(rs2)));
             // seqz rd, rs => sltiu rd, rs, 1 
+            // set lower than immidiate unsign
             builder.add_instruction(AsmInstruction::Sltiu(Ir(inst.id), Ir(inst.id), 1));
         },
         &middleend::inst::InstructionType::Call(_) => todo!(),
@@ -111,13 +110,14 @@ pub fn basic_instruction_selection(
                 bb_index as i64,
                 builder.name.clone(),
             )),
-        &middleend::inst::InstructionType::Branch(TerminatorBranch(reg, _, false_bb)) => {
+        &middleend::inst::InstructionType::Branch(TerminatorBranch(reg, true_bb, false_bb)) => {
             builder.add_instruction(AsmInstruction::Beq(
                 Ir(reg),
                 Zero,
                 false_bb as i64,
                 builder.name.clone(),
             ));
+            builder.add_instruction(AsmInstruction::Jal(Zero, true_bb as i64, builder.name.clone()));
             builder.release_temp();
         }
         middleend::inst::InstructionType::Print(_) => todo!(),

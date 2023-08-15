@@ -194,12 +194,12 @@ impl Interpret {
     fn set(&mut self, reg: Register, value: Value) -> Result<(), InterpretError> {
         if self.locals.is_empty() {
             //if self.globals.contains_key(&reg) {
-                //return Err(InterpretError::DoubleWrite(reg));
+            //return Err(InterpretError::DoubleWrite(reg));
             //}
             self.globals.insert(reg, value);
         } else {
             //if self.locals.last().unwrap().contains_key(&reg) {
-                //return Err(InterpretError::DoubleWrite(reg));
+            //return Err(InterpretError::DoubleWrite(reg));
             //}
             self.locals.last_mut().unwrap().insert(reg, value);
         }
@@ -374,8 +374,8 @@ impl Interpret {
                 InstructionType::Neg(Reg(reg)) => {
                     let val = self.get(*reg)?;
                     let val = match val {
-                        Value::Signed(x) => Value::Signed(!x),
-                        Value::Char(x) => Value::Char(!x),
+                        Value::Signed(x) => Value::Signed(if x != 0 { 0 } else { 1 }),
+                        Value::Char(x) => Value::Char(if x != 0 { 0 } else { 1 }),
                     };
                     self.set(inst.id, val)?;
                 }

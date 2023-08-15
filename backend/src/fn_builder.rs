@@ -1,10 +1,13 @@
 use std::collections::HashSet;
 
-use middleend::{ir::Function, analysis::{live::LiveRegisterAnalysis, dataflow::DataFlowAnalysis}};
+use middleend::{
+    analysis::{dataflow::DataFlowAnalysis, live::LiveRegisterAnalysis},
+    ir::Function,
+};
 
 use crate::{
     backend_ir::AsmBasicBlock,
-    insts::{ Offset, Rd, AsmInstruction},
+    insts::{AsmInstruction, Offset, Rd},
     peepholer::PeepHoler,
     register_alloc::{LinearAllocator, RegAllocator, ValueCell},
     AsmFunction,
@@ -60,17 +63,19 @@ impl<'a> AsmFunctionBuilder<'a> {
 
     fn patch_jumps(offsets: &Vec<usize>, block: AsmBasicBlock) -> AsmBasicBlock {
         let mut block = block;
-        match block.last_mut() {
-            Some(AsmInstruction::Jal(_, offset, _))
-            | Some(AsmInstruction::Jalr(_, _, offset))
-            | Some(AsmInstruction::Beq(_, _, offset, _))
-            | Some(AsmInstruction::Blt(_, _, offset, _))
-            | Some(AsmInstruction::Bge(_, _, offset, _))
-            | Some(AsmInstruction::Bne(_, _, offset, _)) => {
-                *offset = offsets[*offset as usize] as i64;
-            }
-            _ => (),
-        };
+        for inst_index in 0..block.len() {
+            match &mut block[inst_index] {
+                AsmInstruction::Jal(_, offset, _)
+                | AsmInstruction::Jalr(_, _, offset)
+                | AsmInstruction::Beq(_, _, offset, _)
+                | AsmInstruction::Blt(_, _, offset, _)
+                | AsmInstruction::Bge(_, _, offset, _)
+                | AsmInstruction::Bne(_, _, offset, _) => {
+                    *offset = offsets[*offset as usize] as i64;
+                }
+                _ => (),
+            };
+        }
         block
     }
 
