@@ -157,15 +157,10 @@ impl IrCompiler {
                 }
             }
             ExprType::Index(e, index) => {
-                let start = self.compile_lvalue(e, f_b)?;
+                let start = self.compile_expr(e, f_b)?;
                 let index = self.compile_expr(index, f_b)?;
-                let addr = f_b.add(
-                    I::Gep(
-                        IrCompiler::get_type_size(&expr.get_type()),
-                        RegRegImm(start, index, 0),
-                    ),
-                    RegType::Int,
-                );
+                let size = IrCompiler::get_type_size(&expr.get_type(), f_b);
+                let addr = f_b.add(I::Gep(size, RegRegImm(start, index, 0)), RegType::Int);
 
                 Ok(f_b.add(I::Ld(Reg(addr)), expr.get_type().into()))
             }
@@ -212,15 +207,10 @@ impl IrCompiler {
             ExprType::Ident(name) => self.get_addreg(name.clone()),
             ExprType::Deref(e) => self.compile_expr(e, f_b),
             ExprType::Index(e, index) => {
-                let start = self.compile_lvalue(e, f_b)?;
+                let start = self.compile_expr(e, f_b)?;
                 let index = self.compile_expr(index, f_b)?;
-                Ok(f_b.add(
-                    I::Gep(
-                        IrCompiler::get_type_size(&store.get_type()),
-                        RegRegImm(start, index, 0),
-                    ),
-                    RegType::Int,
-                ))
+                let size = IrCompiler::get_type_size(&store.get_type(), f_b);
+                Ok(f_b.add(I::Gep(size, RegRegImm(start, index, 0)), RegType::Int))
             }
             _ => todo!(),
         }
@@ -238,7 +228,7 @@ impl IrCompiler {
         Ok(())
     }
 
-    fn get_type_size(type_def: &TypeDef) -> usize {
+    fn get_type_size(type_def: &TypeDef, f_b: &mut FunctionBuilder) -> usize {
         match type_def {
             TypeDef::Void => unreachable!(),
             TypeDef::PrimType(PrimType::Int) => 8,
@@ -248,7 +238,7 @@ impl IrCompiler {
             TypeDef::Alias(_) => todo!(),
             TypeDef::Struct(_) => todo!(),
             TypeDef::Array(array_type) => {
-                array_type.index * IrCompiler::get_type_size(&array_type.inner_type)
+                array_type.index * IrCompiler::get_type_size(&array_type.inner_type, f_b)
             }
         }
     }
@@ -258,8 +248,15 @@ impl IrCompiler {
         decl: &VarDecl,
         f_b: &mut FunctionBuilder,
     ) -> Result<(), IrCompErr> {
-        let size = IrCompiler::get_type_size(&decl.value.var_type) as i64;
-        let reg = f_b.add(I::Alloca(ImmI(size)), RegType::Int);
+        let size = IrCompiler::get_type_size(&decl.value.var_type, f_b) as i64;
+        let reg = if let TypeDef::Array(_) = decl.value.var_type {
+            let addr_reg = f_b.add(I::Alloca(ImmI(size)), RegType::Int);
+            let reg = f_b.add(I::Alloca(ImmI(8)), RegType::Int);
+            f_b.add(I::St(RegReg(reg, addr_reg)), RegType::Void);
+            reg
+        } else {
+            f_b.add(I::Alloca(ImmI(size)), RegType::Int)
+        };
         self.env.last_mut().unwrap().insert(decl.name.clone(), reg);
         if let Some(init_val) = &decl.value.init_val {
             self.compile_named_assign(decl.name.clone(), init_val, f_b)?;

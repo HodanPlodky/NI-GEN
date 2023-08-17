@@ -126,7 +126,7 @@ impl FunctionBuilder {
             blocks: self.blocks,
         };
 
-        //while remove_store_load(&mut result) {}
+        while remove_store_load(&mut result) {}
 
         result
     }
