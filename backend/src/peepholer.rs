@@ -55,16 +55,28 @@ impl Database for MockDatabase {
                 if rd1 == rs2 && imm.count_ones() == 1 && rd2 == rd1 =>
             {
                 let shift = imm.trailing_zeros() as i64;
-                Some(vec![
-                    AsmInstruction::Slli(rd2, rs1, shift),
-                ])
+                Some(vec![AsmInstruction::Slli(rd2, rs1, shift)])
             }
             &[AsmInstruction::Addi(rd1, Zero, imm), AsmInstruction::Mul(rd2, rs1, rs2)]
                 if rd1 == rs1 && imm.count_ones() == 1 && rd2 == rd1 =>
             {
                 let shift = imm.trailing_zeros() as i64;
+                Some(vec![AsmInstruction::Slli(rd2, rs2, shift)])
+            }
+            &[AsmInstruction::Addi(rd1, rs1_addi, 0), AsmInstruction::Mul(rd2, rs1_mul, rs2_mul)]
+                if rd1 == rs1_mul =>
+            {
                 Some(vec![
-                    AsmInstruction::Slli(rd2, rs2, shift),
+                    AsmInstruction::Addi(rd1, rs1_addi, 0),
+                    AsmInstruction::Mul(rd2, rs1_addi, rs2_mul),
+                ])
+            }
+            &[AsmInstruction::Addi(rd1, rs1_addi, 0), AsmInstruction::Mul(rd2, rs1_mul, rs2_mul)]
+                if rd1 == rs2_mul =>
+            {
+                Some(vec![
+                    AsmInstruction::Addi(rd1, rs1_addi, 0),
+                    AsmInstruction::Mul(rd2, rs1_mul, rs1_addi),
                 ])
             }
             &[AsmInstruction::Addi(reg, Sp, imm), AsmInstruction::Ld(out_reg, rs1, 0)]
