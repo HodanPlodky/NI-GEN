@@ -51,6 +51,22 @@ impl Database for MockDatabase {
                     AsmInstruction::Addi(out_reg, rs, imm1 + imm2),
                 ])
             }
+            &[AsmInstruction::Addi(rd1, Zero, imm), AsmInstruction::Mul(rd2, rs1, rs2)]
+                if rd1 == rs2 && imm.count_ones() == 1 && rd2 == rd1 =>
+            {
+                let shift = imm.trailing_zeros() as i64;
+                Some(vec![
+                    AsmInstruction::Slli(rd2, rs1, shift),
+                ])
+            }
+            &[AsmInstruction::Addi(rd1, Zero, imm), AsmInstruction::Mul(rd2, rs1, rs2)]
+                if rd1 == rs1 && imm.count_ones() == 1 && rd2 == rd1 =>
+            {
+                let shift = imm.trailing_zeros() as i64;
+                Some(vec![
+                    AsmInstruction::Slli(rd2, rs2, shift),
+                ])
+            }
             &[AsmInstruction::Addi(reg, Sp, imm), AsmInstruction::Ld(out_reg, rs1, 0)]
                 if reg == rs1 && reg != Sp =>
             {
@@ -133,7 +149,7 @@ impl<'a> PeepHoler<'a> {
         }
         change
     }
-    
+
     #[allow(dead_code)]
     pub fn pass_function(&self, function: &mut AsmFunction, size: usize) -> bool {
         let mut change = false;
