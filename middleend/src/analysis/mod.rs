@@ -5,3 +5,4 @@ pub mod dataflow;
 pub mod lattice;
 pub mod live;
 pub mod const_mem;
+pub mod possible_mem;
