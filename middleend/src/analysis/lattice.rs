@@ -99,18 +99,18 @@ where
 pub struct MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
-    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: PartialEq + Eq + Clone,
     L: Lattice<T>,
 {
     pub map: HashSet<F>,
-    inner_lattice: L,
+    pub inner_lattice: L,
     phantom: PhantomData<T>,
 }
 
 impl<L, F, T> MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
-    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: PartialEq + Eq + Clone,
     L: Lattice<T>,
 {
     pub fn new(map: HashSet<F>, inner_lattice: L) -> Self {
@@ -125,7 +125,7 @@ where
 impl<L, F, T> Lattice<HashMap<F, T>> for MapLattice<L, F, T>
 where
     F: std::hash::Hash + PartialEq + Eq + Clone + Copy,
-    T: std::hash::Hash + PartialEq + Eq + Clone + Copy,
+    T: PartialEq + Eq + Clone,
     L: Lattice<T>,
 {
     fn top(&self) -> HashMap<F, T> {
