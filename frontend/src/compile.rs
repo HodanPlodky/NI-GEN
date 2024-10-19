@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use frontend::{
+use crate::{
     ast::{
         Expr, ExprType, FnDef, Operator, Program, Statement, StatementType, TopLevel, Val, VarDecl,
     },
     typeast::{PrimType, TypeDef},
 };
 
-use crate::{
+use middleend::{
     builder::{FunctionBuilder, IrBuilder, IrBuilderError},
     inst::{
         ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs, Terminator,
@@ -16,7 +16,7 @@ use crate::{
     ir::{IrProgram, RegType, Register},
 };
 
-pub fn ir_compile(program: Program) -> Result<IrProgram, IrCompErr> {
+pub fn compile(program: Program) -> Result<IrProgram, IrCompErr> {
     let mut compiler = IrCompiler::default();
     compiler.compile(program)
 }

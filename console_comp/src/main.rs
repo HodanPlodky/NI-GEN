@@ -5,6 +5,7 @@ use std::{
 
 use backend::{asm_compile, emit::emit_assembly};
 use frontend::parse;
+use frontend::compile;
 use middleend::{
     analysis::{
         analysis::analyze_program,
@@ -15,7 +16,6 @@ use middleend::{
         possible_mem::PossibleMemAnalysis,
     },
     ir::Register,
-    ir_compile::ir_compile,
     ir_interpret::run,
 };
 
@@ -82,7 +82,7 @@ fn main() {
         return;
     }
 
-    let ir_prog = ir_compile(prog).unwrap();
+    let ir_prog = compile(prog).unwrap();
     if args[1] == "--ir" {
         println!("{}", ir_prog);
         let res = run(ir_prog).unwrap();
