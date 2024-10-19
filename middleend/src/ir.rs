@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use frontend::ast::AstData;
+//use frontend::ast::AstData;
 
 use crate::inst::{InstructionType, TerminatorBranch, TerminatorJump};
 
@@ -16,7 +16,6 @@ pub type InstUUID = (bool, usize, usize);
 pub struct Instruction {
     pub id: InstUUID,
     pub reg_type: RegType,
-    pub ast_data: Option<AstData>,
     pub data: InstructionType,
 }
 
@@ -24,13 +23,11 @@ impl Instruction {
     pub fn new(
         id: InstUUID,
         reg_type: RegType,
-        ast_data: Option<AstData>,
         data: InstructionType,
     ) -> Self {
         Self {
             id,
             reg_type,
-            ast_data,
             data,
         }
     }

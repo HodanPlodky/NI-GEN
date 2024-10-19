@@ -10,6 +10,9 @@ mod lexer;
 mod parser;
 pub mod typeast;
 mod typecheck;
+mod compile;
+
+pub use compile::compile;
 
 pub fn parse(input: String, filename: String) -> Result<Program, FrontendError> {
     let lex = Lexer::new(filename, input.chars().peekable());
@@ -19,3 +22,4 @@ pub fn parse(input: String, filename: String) -> Result<Program, FrontendError> 
     type_program(&mut program)?;
     Ok(program)
 }
+

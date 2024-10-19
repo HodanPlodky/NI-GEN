@@ -49,7 +49,7 @@ impl IrBuilder {
 
     pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
         let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, None, inst);
+        let inst = Instruction::new(id, reg_type, inst);
         self.global.blocks[0].push(inst);
         id
     }
@@ -94,7 +94,7 @@ impl FunctionBuilder {
 
     pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
         let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, None, inst);
+        let inst = Instruction::new(id, reg_type, inst);
         self.blocks[self.act_bb].push(inst);
         id
     }
