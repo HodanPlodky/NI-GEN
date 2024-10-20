@@ -23,7 +23,7 @@ impl Display for AsmInstruction {
             AsmInstruction::Ld(x, y, offset) => write!(f, "ld {}, {}({})", x, offset, y),
             AsmInstruction::Lbu(x, y, z) => write!(f, "lbu {}, {}, {}", x, y, z),
             AsmInstruction::Lhu(x, y, z) => write!(f, "lhu {}, {}, {}", x, y, z),
-            AsmInstruction::Sb(x, y, z) => write!(f, "sb {}, {}, {}", x, y, z),
+            AsmInstruction::Sb(x, y, offset) => write!(f, "sb {}, {}({})", x, offset, y),
             AsmInstruction::Sh(x, y, z) => write!(f, "sh {}, {}, {}", x, y, z),
             AsmInstruction::Sw(x, y, z) => write!(f, "sw {}, {}, {}", x, y, z),
             AsmInstruction::Sd(x, y, offset) => write!(f, "sd {}, {}({})", x, offset, y),
@@ -49,6 +49,7 @@ impl Display for AsmInstruction {
             AsmInstruction::Call(imm, _) => write!(f, "call {}", imm),
             AsmInstruction::Ret => write!(f, "ret"),
             AsmInstruction::Mul(x, y, z) => write!(f, "mul {}, {}, {}", x, y, z),
+            AsmInstruction::Ecall => write!(f, "ecall"),
         }
     }
 }

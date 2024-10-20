@@ -5,12 +5,12 @@ use parser::Parser;
 use typecheck::type_program;
 
 pub mod ast;
+mod compile;
 mod errors;
 mod lexer;
 mod parser;
 pub mod typeast;
 mod typecheck;
-mod compile;
 
 pub use compile::compile;
 
@@ -22,4 +22,3 @@ pub fn parse(input: String, filename: String) -> Result<Program, FrontendError> 
     type_program(&mut program)?;
     Ok(program)
 }
-

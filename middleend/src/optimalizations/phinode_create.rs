@@ -1,7 +1,5 @@
 use crate::{
-    analysis::{
-        dataflow::DataFlowAnalysis, possible_mem::PossibleMemAnalysis,
-    },
+    analysis::{dataflow::DataFlowAnalysis, possible_mem::PossibleMemAnalysis},
     ir::Function,
 };
 

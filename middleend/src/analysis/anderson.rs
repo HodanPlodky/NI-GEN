@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::cubicsolver::CubicSolver,
-    inst::{Reg, RegReg, RegRegImm},
+    inst::{ImmIRegs, Reg, RegReg, RegRegImm, SymRegs},
     ir::{BasicBlock, Function, InstUUID, Instruction, Register},
 };
 
@@ -71,7 +71,7 @@ impl<'a> AndersenAnalysis<'a> {
     }
 
     fn analyze_inst(&mut self, inst: &Instruction, solver: &mut CubicSolver<Cell, Place>) {
-        match inst.data {
+        match &inst.data {
             crate::inst::InstructionType::Arg(_) => {
                 solver.includes(Cell::Volatile, Place::Register(inst.id))
             }
@@ -79,21 +79,21 @@ impl<'a> AndersenAnalysis<'a> {
                 solver.includes(Cell::Alloc(inst.id), Place::Register(inst.id))
             }
             crate::inst::InstructionType::Mov(Reg(reg)) => {
-                solver.add_edge(Place::Register(reg), Place::Register(inst.id))
+                solver.add_edge(Place::Register(*reg), Place::Register(inst.id))
             }
             crate::inst::InstructionType::Gep(_, RegRegImm(start, _, _)) => {
-                solver.add_edge(Place::Register(start), Place::Register(inst.id))
+                solver.add_edge(Place::Register(*start), Place::Register(inst.id))
             }
             // anything that could be in the value it the
             // address of the [reg] could be also in the inst.id
             crate::inst::InstructionType::Ld(Reg(addr)) => {
                 // every thing that could be on the address [addr] could be in the register
-                solver.add_edge(Place::Memory(addr), Place::Register(inst.id));
+                solver.add_edge(Place::Memory(*addr), Place::Register(inst.id));
 
                 for mem in self.get_memory() {
                     solver.includes_implies(
                         Cell::Alloc(mem),
-                        Place::Memory(addr),
+                        Place::Memory(*addr),
                         Place::Memory(mem),
                         Place::Register(inst.id),
                     );
@@ -102,14 +102,20 @@ impl<'a> AndersenAnalysis<'a> {
             // anything that could be in the register reg
             // could be in the in the memory on the address [addr]
             crate::inst::InstructionType::St(RegReg(addr, reg)) => {
-                solver.add_edge(Place::Register(reg), Place::Memory(addr));
+                solver.add_edge(Place::Register(*reg), Place::Memory(*addr));
                 for mem in self.get_memory() {
                     solver.includes_implies(
                         Cell::Alloc(mem),
-                        Place::Memory(addr),
-                        Place::Register(reg),
+                        Place::Memory(*addr),
+                        Place::Register(*reg),
                         Place::Memory(mem),
                     );
+                }
+            }
+            crate::inst::InstructionType::CallDirect(SymRegs(_, regs))
+            | crate::inst::InstructionType::SysCall(ImmIRegs(_, regs)) => {
+                for reg in regs {
+                    solver.includes(Cell::Volatile, Place::Register(*reg))
                 }
             }
             // I am still not using this so fuck it
@@ -134,12 +140,10 @@ impl<'a> AndersenAnalysis<'a> {
                     })
                 })
                 .flatten()
-                .map(|inst| {
-                    match inst.data {
-                        crate::inst::InstructionType::St(RegReg(addr, _)) => addr,
-                        crate::inst::InstructionType::Ld(Reg(addr)) => addr,
-                        _ => unreachable!()
-                    }
+                .map(|inst| match inst.data {
+                    crate::inst::InstructionType::St(RegReg(addr, _)) => addr,
+                    crate::inst::InstructionType::Ld(Reg(addr)) => addr,
+                    _ => unreachable!(),
                 })
                 .collect();
             self.memory = Some(memory.into_iter().collect());

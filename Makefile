@@ -2,12 +2,12 @@ AS = riscv64-linux-gnu-as
 CC = riscv64-linux-gnu-gcc
 CFLAGS = -ggdb -fomit-frame-pointer -march=rv64g # -fno-pic
 
-FILE=main
+FILE=example2
 
 run: compile
 	qemu-riscv64 -L /usr/riscv64-linux-gnu/ $(FILE)
 
-compile:
+compile: $(FILE)
 	rm -rf $(FILE)
 	$(CC) $(CFLAGS) -c $(FILE).s -o $(FILE).o
 	$(CC) $(CFLAGS) -o $(FILE) $(FILE).o -nostdlib -static

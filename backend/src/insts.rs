@@ -81,6 +81,8 @@ pub enum AsmInstruction {
     // pseudo instructions
     Call(String, middleend::ir::InstUUID),
     Ret,
+
+    Ecall,
 }
 
 impl AsmInstruction {
@@ -134,7 +136,7 @@ impl AsmInstruction {
             &AsmInstruction::Or(_, rs1, rs2) => vec![rs1, rs2],
             &AsmInstruction::And(_, rs1, rs2) => vec![rs1, rs2],
             &AsmInstruction::Sra(_, rs1, rs2) => vec![rs1, rs2],
-            _ => vec![]
+            _ => vec![],
         }
     }
 
@@ -170,7 +172,7 @@ impl AsmInstruction {
             &AsmInstruction::Or(rd, _, _) => Some(rd),
             &AsmInstruction::And(rd, _, _) => Some(rd),
             &AsmInstruction::Sra(rd, _, _) => Some(rd),
-            _ => None
+            _ => None,
         }
     }
 }

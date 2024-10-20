@@ -1,6 +1,7 @@
 use crate::{
     inst::InstructionType,
-    ir::{BBIndex, BasicBlock, Function, InstUUID, Instruction, IrProgram, RegType, Register}, optimalizations::death_store_load::remove_store_load,
+    ir::{BBIndex, BasicBlock, Function, InstUUID, Instruction, IrProgram, RegType, Register},
+    optimalizations::death_store_load::remove_store_load,
 };
 
 #[derive(Debug)]
@@ -70,7 +71,7 @@ pub struct FunctionBuilder {
     arg_count: u64,
     ret_type: RegType,
     act_bb: BBIndex,
-    blocks: Vec<BasicBlock>,
+    pub blocks: Vec<BasicBlock>,
 }
 
 impl FunctionBuilder {
@@ -126,7 +127,11 @@ impl FunctionBuilder {
             blocks: self.blocks,
         };
 
-        while remove_store_load(&mut result) {}
+        //println!("{}", result);
+        //while remove_store_load(&mut result) {
+        //println!("#############################################\n");
+        //println!("{}", result);
+        //}
 
         result
     }

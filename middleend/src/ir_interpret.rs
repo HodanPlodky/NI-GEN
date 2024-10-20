@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     inst::{
-        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch,
+        ImmC, ImmI, ImmIRegs, InstructionType, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch,
         TerminatorJump, TerminatorReg,
     },
     ir::{BBIndex, BasicBlock, Function, Instruction, IrProgram, RegType, Register},
@@ -438,6 +438,14 @@ impl Interpret {
                     print!("{}", val);
                 }
                 InstructionType::Phi(_) => todo!(),
+                InstructionType::SysCall(ImmIRegs(imm, regs)) => {
+                    println!(
+                        "syscall {imm}, {:?}",
+                        regs.iter()
+                            .map(|x| self.get(*x).unwrap())
+                            .collect::<Vec<Value>>()
+                    );
+                }
             }
         }
         Ok(next.copied())

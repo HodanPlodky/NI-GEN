@@ -84,6 +84,7 @@ pub enum TokenType {
     Semicol,
     Comma,
     Dot,
+    At,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,6 +214,7 @@ impl Lexer {
             ',' => Ok(self.create_token(single_char(TokenType::Comma))),
             '0' => Ok(self.create_token(single_char(TokenType::Int(0)))),
             '.' => Ok(self.create_token(single_char(TokenType::Dot))),
+            '@' => Ok(self.create_token(single_char(TokenType::At))),
             c if c.is_alphabetic() || c == '_' => {
                 let ident = self.ident()?;
                 Ok(self.create_token(Self::check_keyword(ident)))
@@ -306,8 +308,9 @@ mod tests {
 
     #[test]
     fn lexer_test() {
-        let input = "int main() {\nint x = 1 + 33; x += 1 ;-1; 'a' if else while char(( _a -52 ))} 52++"
-            .to_string();
+        let input =
+            "int main() {\nint x = 1 + 33; x += 1 ;-1; 'a' if else while char(( _a -52 ))} 52++"
+                .to_string();
 
         let mut lex = Lexer::new("filename.tc".to_string(), input.chars().peekable());
 
@@ -432,7 +435,11 @@ mod tests {
             }
         }
 
-        let result: Vec<TokenType> = vec![Operator::Add.into(), Operator::Assign.into(), TokenType::Eof];
+        let result: Vec<TokenType> = vec![
+            Operator::Add.into(),
+            Operator::Assign.into(),
+            TokenType::Eof,
+        ];
 
         assert_eq!(
             tokens

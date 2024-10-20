@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::{
@@ -119,9 +119,9 @@ fn remove_unused_stores(function: &mut Function) -> bool {
     change
 }
 
-fn remove_movs(function : &mut Function) -> bool {
+fn remove_movs(function: &mut Function) -> bool {
     let mut change = false;
-    let mut renames : HashMap<Register, Register> = HashMap::new();
+    let mut renames: HashMap<Register, Register> = HashMap::new();
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
         let mut inst_index = 0;

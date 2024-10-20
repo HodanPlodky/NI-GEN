@@ -20,16 +20,8 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    pub fn new(
-        id: InstUUID,
-        reg_type: RegType,
-        data: InstructionType,
-    ) -> Self {
-        Self {
-            id,
-            reg_type,
-            data,
-        }
+    pub fn new(id: InstUUID, reg_type: RegType, data: InstructionType) -> Self {
+        Self { id, reg_type, data }
     }
 }
 
@@ -132,6 +124,11 @@ impl Function {
 
     pub fn get_used_regs(&self) -> Vec<Register> {
         self.iter().map(|x| x.get_used_regs()).flatten().collect()
+    }
+
+    pub fn get_type(&self, reg: Register) -> RegType {
+        let (_, bb_index, inst_index) = reg;
+        self.blocks[bb_index][inst_index].reg_type.clone()
     }
 }
 

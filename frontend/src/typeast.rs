@@ -68,13 +68,25 @@ impl PartialEq for TypeDef {
             (TypeDef::Void, TypeDef::Void) => true,
             (TypeDef::PrimType(prim_a), TypeDef::PrimType(prim_b)) => prim_a == prim_b,
             (TypeDef::PointerType(inner_a), TypeDef::PointerType(inner_b)) => inner_a == inner_b,
-            (TypeDef::PointerType(inner_ptr), TypeDef::Array(ArrayType { inner_type, index : _ })) => inner_ptr == inner_type,
+            (
+                TypeDef::PointerType(inner_ptr),
+                TypeDef::Array(ArrayType {
+                    inner_type,
+                    index: _,
+                }),
+            ) => inner_ptr == inner_type,
             (TypeDef::Function(fn_type_a), TypeDef::Function(fn_type_b)) => fn_type_a == fn_type_b,
             (TypeDef::Alias(name_a), TypeDef::Alias(name_b)) => name_a == name_b,
             (TypeDef::Struct(struct_a), TypeDef::Struct(struct_b)) => struct_a == struct_b,
-            (TypeDef::Array(ArrayType { inner_type, index : _ }), TypeDef::PointerType(inner_ptr)) => inner_type == inner_ptr,
+            (
+                TypeDef::Array(ArrayType {
+                    inner_type,
+                    index: _,
+                }),
+                TypeDef::PointerType(inner_ptr),
+            ) => inner_type == inner_ptr,
             (TypeDef::Array(arr_a), TypeDef::Array(arr_b)) => arr_a == arr_b,
-            _ => false
+            _ => false,
         }
     }
 }

@@ -1,10 +1,14 @@
 use std::collections::HashSet;
 
-use crate::{ir::{Function, Register, InstUUID}, inst::InstructionType};
+use crate::{
+    inst::InstructionType,
+    ir::{Function, InstUUID, Register},
+};
 
-use super::{lattice::{PowerSetLattice, Lattice}, dataflow::{DataFlowAnalysis, DataflowType}};
-
-
+use super::{
+    dataflow::{DataFlowAnalysis, DataflowType},
+    lattice::{Lattice, PowerSetLattice},
+};
 
 pub struct LiveRegisterAnalysis<'a> {
     function: &'a Function,
@@ -68,4 +72,3 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         self.function = function;
     }
 }
-

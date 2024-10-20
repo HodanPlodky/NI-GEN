@@ -327,6 +327,12 @@ impl TypecheckAst<Expr> for Expr {
                     Err(TypeError::NonStructType.into())
                 }
             }
+            ExprType::SysCall(_, args) => {
+                for arg in args {
+                    arg.typecheck(data)?;
+                }
+                Ok(self.set_type(TypeDef::Void))
+            }
         }
     }
 }

@@ -1,9 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{
-    lexer::Loc,
-    typeast::TypeDef,
-};
+use crate::{lexer::Loc, typeast::TypeDef};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operator {
@@ -152,6 +149,7 @@ pub enum ExprType {
     Value(Val),
     Ident(String),
     Call(Box<Expr>, Vec<Expr>),
+    SysCall(i64, Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
     Deref(Box<Expr>),
     Address(Box<Expr>),

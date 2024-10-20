@@ -10,8 +10,8 @@ use crate::{
 use middleend::{
     builder::{FunctionBuilder, IrBuilder, IrBuilderError},
     inst::{
-        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs, Terminator,
-        TerminatorBranch, TerminatorJump, TerminatorReg,
+        ImmC, ImmI, ImmIRegs, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs,
+        Terminator, TerminatorBranch, TerminatorJump, TerminatorReg,
     },
     ir::{IrProgram, RegType, Register},
 };
@@ -76,7 +76,9 @@ impl IrCompiler {
         self.ir_builder.add(I::Exit(Terminator), RegType::Void);
 
         let builder = std::mem::take(&mut self.ir_builder);
-        Ok(builder.create())
+        let res = builder.create();
+        //println!("{}", res);
+        Ok(res)
     }
 
     fn compile_val(&mut self, val: &Val, f_b: &mut FunctionBuilder) -> Result<Register, IrCompErr> {
@@ -155,6 +157,13 @@ impl IrCompiler {
                         Ok(f_b.add(I::Call(RegRegs(target, args_regs)), expr.get_type().into()))
                     }
                 }
+            }
+            ExprType::SysCall(number, args) => {
+                let mut regs = vec![];
+                for arg in args {
+                    regs.push(self.compile_expr(arg, f_b)?);
+                }
+                Ok(f_b.add(I::SysCall(ImmIRegs(*number, regs)), RegType::Void))
             }
             ExprType::Index(e, index) => {
                 let start = self.compile_expr(e, f_b)?;

@@ -1,6 +1,7 @@
 use middleend::{
     inst::{
-        ImmI, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch, TerminatorJump, TerminatorReg,
+        ImmC, ImmI, ImmIRegs, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch, TerminatorJump,
+        TerminatorReg,
     },
     ir::Instruction,
 };
@@ -11,6 +12,7 @@ pub fn basic_instruction_selection(
     inst: &Instruction,
     place: middleend::ir::InstUUID,
     builder: &mut AsmFunctionBuilder,
+    function: &middleend::ir::Function,
 ) {
     use crate::insts::Rd::*;
     let reg = inst.id;
@@ -18,12 +20,22 @@ pub fn basic_instruction_selection(
         &middleend::inst::InstructionType::Ldi(ImmI(imm)) => {
             builder.add_instruction(AsmInstruction::Addi(Ir(reg), Zero, imm));
         }
-        &middleend::inst::InstructionType::Ldc(_) => todo!(),
+        &middleend::inst::InstructionType::Ldc(ImmC(imm)) => {
+            builder.add_instruction(AsmInstruction::Addi(Ir(reg), Zero, imm as u8 as i64));
+        }
         &middleend::inst::InstructionType::Ld(Reg(rs1)) => {
             builder.add_instruction(AsmInstruction::Ld(Ir(reg), Ir(rs1), 0));
         }
         &middleend::inst::InstructionType::St(RegReg(rs1, rs2)) => {
-            builder.add_instruction(AsmInstruction::Sd(Ir(rs2), Ir(rs1), 0));
+            match function.get_type(rs2) {
+                middleend::ir::RegType::Void => panic!(),
+                middleend::ir::RegType::Int => {
+                    builder.add_instruction(AsmInstruction::Sd(Ir(rs2), Ir(rs1), 0))
+                }
+                middleend::ir::RegType::Char => {
+                    builder.add_instruction(AsmInstruction::Sb(Ir(rs2), Ir(rs1), 0))
+                }
+            }
             builder.release_temp();
         }
         &middleend::inst::InstructionType::Alloca(ImmI(_)) => (),
@@ -62,7 +74,7 @@ pub fn basic_instruction_selection(
         middleend::inst::InstructionType::Xor(_) => todo!(),
         &middleend::inst::InstructionType::Neg(Reg(rs1)) => {
             builder.add_instruction(AsmInstruction::Sltiu(Ir(inst.id), Ir(rs1), 1));
-        },
+        }
         &middleend::inst::InstructionType::Le(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Addi(Arch(31), Ir(rs2), 1));
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs1), Arch(31)));
@@ -72,14 +84,14 @@ pub fn basic_instruction_selection(
         }
         &middleend::inst::InstructionType::Gt(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Slt(Ir(reg), Ir(rs2), Ir(rs1)));
-        },
+        }
         &middleend::inst::InstructionType::Ge(_) => todo!(),
         &middleend::inst::InstructionType::Eql(RegReg(rs1, rs2)) => {
             builder.add_instruction(AsmInstruction::Sub(Ir(inst.id), Ir(rs1), Ir(rs2)));
-            // seqz rd, rs => sltiu rd, rs, 1 
+            // seqz rd, rs => sltiu rd, rs, 1
             // set lower than immidiate unsign
             builder.add_instruction(AsmInstruction::Sltiu(Ir(inst.id), Ir(inst.id), 1));
-        },
+        }
         &middleend::inst::InstructionType::Call(_) => todo!(),
         middleend::inst::InstructionType::CallDirect(SymRegs(sym, regs)) => {
             if regs.len() >= 8 {
@@ -117,10 +129,25 @@ pub fn basic_instruction_selection(
                 false_bb as i64,
                 builder.name.clone(),
             ));
-            builder.add_instruction(AsmInstruction::Jal(Zero, true_bb as i64, builder.name.clone()));
+            builder.add_instruction(AsmInstruction::Jal(
+                Zero,
+                true_bb as i64,
+                builder.name.clone(),
+            ));
             builder.release_temp();
         }
         middleend::inst::InstructionType::Print(_) => todo!(),
         middleend::inst::InstructionType::Phi(_) => todo!(),
+        middleend::inst::InstructionType::SysCall(ImmIRegs(num, regs)) => {
+            if regs.len() >= 7 {
+                todo!();
+            }
+            for i in 0..regs.len() {
+                builder.add_instruction(AsmInstruction::Addi(ArgReg(i as u8), Ir(regs[i]), 0));
+            }
+
+            builder.add_instruction(AsmInstruction::Addi(ArgReg(7), Zero, *num));
+            builder.add_instruction(AsmInstruction::Ecall)
+        }
     }
 }

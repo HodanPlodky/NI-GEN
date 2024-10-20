@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use crate::{
     inst::{
-        ImmC, ImmI, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs, TerminatorBranch,
-        TerminatorJump, TerminatorReg,
+        ImmC, ImmI, ImmIRegs, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs,
+        TerminatorBranch, TerminatorJump, TerminatorReg,
     },
     ir::{BasicBlock, Function, Instruction, IrProgram, RegType, Register},
 };
@@ -98,6 +98,14 @@ impl Display for InstructionType {
             InstructionType::Print(_) => todo!(),
             InstructionType::Phi(_) => todo!(),
             InstructionType::Exit(_) => write!(f, "exit"),
+            InstructionType::SysCall(ImmIRegs(num, regs)) => write!(
+                f,
+                "syscall {} [{}]",
+                num,
+                regs.into_iter()
+                    .map(|x| reg_view(*x))
+                    .fold("".to_string(), |acc, x| acc + x.as_str())
+            ),
         }
     }
 }

@@ -4,8 +4,8 @@ use std::{
 };
 
 use backend::{asm_compile, emit::emit_assembly};
-use frontend::parse;
 use frontend::compile;
+use frontend::parse;
 use middleend::{
     analysis::{
         analysis::analyze_program,

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{BBIndex, Register, Symbol, RegType};
+use crate::ir::{BBIndex, RegType, Register, Symbol};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {
@@ -52,6 +52,7 @@ pub enum InstructionType {
 
     // instrisic
     Print(Reg),
+    SysCall(ImmIRegs),
 
     // phi node
     Phi(RegRegs),
@@ -104,6 +105,7 @@ impl InstructionType {
                 regs.push(*reg);
                 regs
             }
+            InstructionType::SysCall(ImmIRegs(_, regs)) => regs.clone(),
             _ => vec![],
         }
     }
@@ -168,7 +170,15 @@ impl InstructionType {
                         regs[i] = *renames.get(&regs[i]).unwrap();
                     }
                 }
-            },
+            }
+
+            InstructionType::SysCall(ImmIRegs(_, regs)) => {
+                for i in 0..regs.len() {
+                    if renames.contains_key(&regs[i]) {
+                        regs[i] = *renames.get(&regs[i]).unwrap();
+                    }
+                }
+            }
 
             _ => (),
         }
@@ -178,6 +188,8 @@ impl InstructionType {
 // types of instructions
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmI(pub i64);
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ImmIRegs(pub i64, pub Vec<Register>);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ImmC(pub char);
 #[derive(Clone, PartialEq, Eq, Debug)]

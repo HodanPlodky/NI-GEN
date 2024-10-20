@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ir::IrProgram;
 
-use super::{lattice::Lattice, dataflow::DataFlowAnalysis};
+use super::{dataflow::DataFlowAnalysis, lattice::Lattice};
 
 pub fn analyze_program<'a, A, L>(
     program: &'a IrProgram,

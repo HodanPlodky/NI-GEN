@@ -135,7 +135,11 @@ impl LinearAllocator {
                                 .insert(inst.id, ValueCell::Value(self.stacksize));
                             self.stacksize += size;
                         }
-                        _ => self.allocate_reg(inst.id, (inst.id.0, bb_index, inst_index), &prog.blocks),
+                        _ => self.allocate_reg(
+                            inst.id,
+                            (inst.id.0, bb_index, inst_index),
+                            &prog.blocks,
+                        ),
                     }
                 }
                 self.used[bb_index][inst_index] = self.used_register.clone();
@@ -144,7 +148,12 @@ impl LinearAllocator {
         }
     }
 
-    fn allocate_reg(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
+    fn allocate_reg(
+        &mut self,
+        reg: middleend::ir::Register,
+        place: middleend::ir::InstUUID,
+        blocks: &Vec<BasicBlock>,
+    ) {
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -158,7 +167,12 @@ impl LinearAllocator {
         }
     }
 
-    fn create_release(&mut self, reg: middleend::ir::Register, place : middleend::ir::InstUUID, blocks: &Vec<BasicBlock>) {
+    fn create_release(
+        &mut self,
+        reg: middleend::ir::Register,
+        place: middleend::ir::InstUUID,
+        blocks: &Vec<BasicBlock>,
+    ) {
         let (_, bb_start, inst_start) = place;
         let mut place = place;
         for bb_index in bb_start..blocks.len() {

@@ -290,13 +290,13 @@ impl Parser {
             let index = if let TokenType::Int(index) = self.pop().tok {
                 Ok(index)
             } else {
-               Err(ParserError::NonNumberAsSize) 
+                Err(ParserError::NonNumberAsSize)
             }?;
-            
+
             if index < 0 {
                 return Err(ParserError::NegativeArraySize.into());
             }
-             
+
             var_type = TypeDef::Array(ArrayType {
                 inner_type: Box::new(var_type),
                 index: index as usize,
@@ -549,6 +549,23 @@ impl Parser {
                     self.pop();
                     result = Expr::new(ExprType::UnaryPostOp(o, Box::new(result)), data);
                 }
+                TokenType::LeftBrac if result.value == ExprType::Ident("@".to_string()) => {
+                    self.pop();
+                    let call_num = if let TokenType::Int(num) = self.top().tok {
+                        num
+                    } else {
+                        return Err(ParserError::UnexpectedToken(self.top().tok).into());
+                    };
+                    self.pop();
+
+                    let mut args = vec![];
+                    while self.top().tok == TokenType::Comma {
+                        self.pop();
+                        args.push(self.expr()?);
+                    }
+                    self.compare(TokenType::RightBrac)?;
+                    result = Expr::new(ExprType::SysCall(call_num, args), data);
+                }
                 TokenType::LeftBrac => {
                     self.pop();
                     let mut args = vec![];
@@ -586,6 +603,7 @@ impl Parser {
         let data = self.act_data();
         match self.pop().tok {
             TokenType::Ident(name) => Ok(Expr::new(ExprType::Ident(name), data)),
+            TokenType::At => Ok(Expr::new(ExprType::Ident("@".to_string()), data)),
             TokenType::Int(num) => Ok(Expr::new(ExprType::Value(Val::Integer(num)), data)),
             TokenType::Char(c) => Ok(Expr::new(ExprType::Value(Val::Char(c)), data)),
             TokenType::LeftBrac => {

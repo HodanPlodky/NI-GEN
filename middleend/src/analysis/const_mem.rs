@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::lattice::Lattice,
-    inst::{InstructionType, RegReg, SymRegs},
+    inst::{ImmIRegs, InstructionType, RegReg, SymRegs},
     ir::{Function, Register},
 };
 
@@ -25,7 +25,10 @@ impl<'a> ConstantMemoryAnalysis<'a> {
     pub fn new(function: &'a Function) -> Self {
         Self {
             function,
-            inner_lattice: MapLattice::new(ConstantMemoryAnalysis::get_stores(function), FlatLattice::new()),
+            inner_lattice: MapLattice::new(
+                ConstantMemoryAnalysis::get_stores(function),
+                FlatLattice::new(),
+            ),
         }
     }
 
@@ -65,7 +68,8 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
 
     fn set_function(&mut self, func: &'a Function) {
         self.function = func;
-        self.inner_lattice = MapLattice::new(ConstantMemoryAnalysis::get_stores(func), FlatLattice::new());
+        self.inner_lattice =
+            MapLattice::new(ConstantMemoryAnalysis::get_stores(func), FlatLattice::new());
     }
 
     fn direction(&self) -> super::dataflow::DataflowType {
@@ -88,7 +92,7 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
                 state.insert(MemoryPlace(addr), FlatElem::Value(reg));
                 state
             }
-            CallDirect(SymRegs(_, regs)) => {
+            CallDirect(SymRegs(_, regs)) | SysCall(ImmIRegs(_, regs)) => {
                 let mut state = state;
                 for reg in regs.iter() {
                     if self.inner_lattice.map.contains(&MemoryPlace(*reg)) {
@@ -96,7 +100,7 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
                     }
                 }
                 state
-            },
+            }
             _ if bb_index == 0 && inst_index == 0 => self.inner_lattice.bot(),
             _ => state,
         }
