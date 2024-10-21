@@ -127,8 +127,18 @@ impl Function {
     }
 
     pub fn get_type(&self, reg: Register) -> RegType {
-        let (_, bb_index, inst_index) = reg;
-        self.blocks[bb_index][inst_index].reg_type.clone()
+        //let (_, bb_index, inst_index) = reg;
+        //self.blocks[bb_index][inst_index].reg_type.clone()
+        
+        for bb in &self.blocks {
+            for inst in &bb.instruction {
+                if inst.id == reg {
+                    return inst.reg_type.clone()
+                }
+            }
+        }
+
+        unreachable!()
     }
 }
 
