@@ -112,12 +112,6 @@ impl<'a> AndersenAnalysis<'a> {
                     );
                 }
             }
-            crate::inst::InstructionType::CallDirect(SymRegs(_, regs))
-            | crate::inst::InstructionType::SysCall(ImmIRegs(_, regs)) => {
-                for reg in regs {
-                    solver.includes(Cell::Volatile, Place::Register(*reg))
-                }
-            }
             // I am still not using this so fuck it
             crate::inst::InstructionType::Allocg(_) => todo!(),
             _ => (),

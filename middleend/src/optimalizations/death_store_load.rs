@@ -7,7 +7,7 @@ use crate::{
         dataflow::DataFlowAnalysis,
         lattice::FlatElem,
     },
-    inst::{InstructionType, Reg, RegReg},
+    inst::{ImmIRegs, InstructionType, Reg, RegReg, SymRegs},
     ir::{Function, RegType, Register},
 };
 
@@ -72,9 +72,15 @@ fn remove_unused_stores(function: &mut Function) -> bool {
     for bb_index in 0..function.blocks.len() {
         let bb = &mut function.blocks[bb_index];
         for inst_index in 0..bb.len() {
-            match bb[inst_index].data {
+            match &bb[inst_index].data {
                 InstructionType::Ld(Reg(addr)) => {
-                    loads.push(addr);
+                    loads.push(*addr);
+                }
+                crate::inst::InstructionType::CallDirect(SymRegs(_, regs))
+                | crate::inst::InstructionType::SysCall(ImmIRegs(_, regs)) => {
+                    for reg in regs {
+                        loads.push(*reg);
+                    }
                 }
                 _ => (),
             }
@@ -103,6 +109,7 @@ fn remove_unused_stores(function: &mut Function) -> bool {
                         Some(cells) => cells.clone(),
                         None => HashSet::new(),
                     };
+
 
                     if cells.is_disjoint(&loads) && !cells.contains(&Cell::Volatile) {
                         change = true;

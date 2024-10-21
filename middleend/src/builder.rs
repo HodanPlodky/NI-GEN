@@ -127,11 +127,7 @@ impl FunctionBuilder {
             blocks: self.blocks,
         };
 
-        //println!("{}", result);
-        //while remove_store_load(&mut result) {
-        //println!("#############################################\n");
-        //println!("{}", result);
-        //}
+        while remove_store_load(&mut result) {}
 
         result
     }
