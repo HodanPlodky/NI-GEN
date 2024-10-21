@@ -289,7 +289,15 @@ impl Lexer {
 
     pub fn char_tok(&mut self) -> Result<char, LexerError> {
         self.compare('\'')?;
-        let c = self.next_char()?;
+        let c = if self.peek_char()? == '\\' {
+            self.compare('\\')?;
+            match self.next_char()? {
+                'n' => '\n',
+                x => return Err(LexerError::UnexpectedCharacter(x)),
+            }
+        } else {
+            self.next_char()?
+        };
         self.compare('\'')?;
         Ok(c)
     }
