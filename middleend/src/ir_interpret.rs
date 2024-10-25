@@ -257,7 +257,7 @@ impl Interpret {
 
     fn binary_op(
         &mut self,
-        inst: Instruction,
+        inst: &Instruction,
         regs: RegReg,
         op_i64: &dyn Fn(i64, i64) -> i64,
         op_u8: &dyn Fn(u8, u8) -> u8,
@@ -277,7 +277,7 @@ impl Interpret {
 
     fn logic_bin_op(
         &mut self,
-        inst: Instruction,
+        inst: &Instruction,
         regs: RegReg,
         op_i64: &dyn Fn(i64, i64) -> bool,
         op_u8: &dyn Fn(u8, u8) -> bool,
@@ -300,20 +300,22 @@ impl Interpret {
         let mut next = None;
         let mut terminated = false;
         for inst in bb.instruction.iter() {
+            let inst_id = inst.clone();
             if terminated {
                 return Err(InterpretError::BasicBlockConti);
             }
+            let inst = self.program.get_inst(inst_id)
             match &inst.data {
-                InstructionType::Ldi(ImmI(imm)) => self.set(inst.id, Value::Signed(*imm))?,
-                InstructionType::Ldc(ImmC(imm)) => self.set(inst.id, Value::Char(*imm as u8))?,
+                InstructionType::Ldi(ImmI(imm)) => self.set(inst_id, Value::Signed(*imm))?,
+                InstructionType::Ldc(ImmC(imm)) => self.set(inst_id, Value::Char(*imm as u8))?,
                 InstructionType::Ld(Reg(reg)) => {
-                    let val = self.get(*reg)?;
-                    let val = match inst.reg_type {
+                    let val = self.get(reg.clone())?;
+                    let val = match self.program.get_type(inst_id) {
                         RegType::Void => Err(InterpretError::VoidRegister(inst.clone())),
                         RegType::Int => self.mem.read_int(val),
                         RegType::Char => self.mem.read_char(val),
                     }?;
-                    self.set(inst.id, val)?
+                    self.set(inst_id, val)?
                 }
                 InstructionType::St(RegReg(reg_addr, reg_source)) => {
                     let addr_val = self.get(*reg_addr)?;
@@ -322,11 +324,11 @@ impl Interpret {
                 }
                 InstructionType::Alloca(ImmI(imm)) | InstructionType::Allocg(ImmI(imm)) => {
                     let addr = self.mem.alloca(*imm)?;
-                    self.set(inst.id, addr)?
+                    self.set(inst_id, addr)?
                 }
                 InstructionType::Mov(Reg(reg)) => {
                     let val = self.get(*reg)?;
-                    self.set(inst.id, val)?
+                    self.set(inst_id, val)?
                 }
                 InstructionType::Gep(size, RegRegImm(start, index, offset)) => {
                     let start = self.get(*start)?;
@@ -337,39 +339,39 @@ impl Interpret {
                     }?;
 
                     self.set(
-                        inst.id,
+                        inst_id,
                         Value::Signed(start + *size as i64 * index + *offset),
                     )?
                 }
                 InstructionType::Add(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a + b, &|a, b| a + b)?
+                    self.binary_op(inst, *regs, &|a, b| a + b, &|a, b| a + b)?
                 }
                 InstructionType::Sub(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a - b, &|a, b| a - b)?
+                    self.binary_op(inst, *regs, &|a, b| a - b, &|a, b| a - b)?
                 }
                 InstructionType::Mul(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a * b, &|a, b| a * b)?
+                    self.binary_op(inst, *regs, &|a, b| a * b, &|a, b| a * b)?
                 }
                 InstructionType::Div(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a / b, &|a, b| a / b)?
+                    self.binary_op(inst, *regs, &|a, b| a / b, &|a, b| a / b)?
                 }
                 InstructionType::Mod(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a % b, &|a, b| a % b)?
+                    self.binary_op(inst, *regs, &|a, b| a % b, &|a, b| a % b)?
                 }
                 InstructionType::Shr(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a >> b, &|a, b| a >> b)?
+                    self.binary_op(inst, *regs, &|a, b| a >> b, &|a, b| a >> b)?
                 }
                 InstructionType::Shl(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a << b, &|a, b| a << b)?
+                    self.binary_op(inst, *regs, &|a, b| a << b, &|a, b| a << b)?
                 }
                 InstructionType::And(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a & b, &|a, b| a & b)?
+                    self.binary_op(inst, *regs, &|a, b| a & b, &|a, b| a & b)?
                 }
                 InstructionType::Or(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a | b, &|a, b| a | b)?
+                    self.binary_op(inst, *regs, &|a, b| a | b, &|a, b| a | b)?
                 }
                 InstructionType::Xor(regs) => {
-                    self.binary_op(inst.clone(), *regs, &|a, b| a ^ b, &|a, b| a ^ b)?
+                    self.binary_op(inst, *regs, &|a, b| a ^ b, &|a, b| a ^ b)?
                 }
                 InstructionType::Neg(Reg(reg)) => {
                     let val = self.get(*reg)?;
@@ -377,22 +379,22 @@ impl Interpret {
                         Value::Signed(x) => Value::Signed(if x != 0 { 0 } else { 1 }),
                         Value::Char(x) => Value::Char(if x != 0 { 0 } else { 1 }),
                     };
-                    self.set(inst.id, val)?;
+                    self.set(inst_id, val)?;
                 }
                 InstructionType::Lt(regs) => {
-                    self.logic_bin_op(inst.clone(), *regs, &|a, b| a < b, &|a, b| a < b)?
+                    self.logic_bin_op(inst, *regs, &|a, b| a < b, &|a, b| a < b)?
                 }
                 InstructionType::Le(regs) => {
-                    self.logic_bin_op(inst.clone(), *regs, &|a, b| a <= b, &|a, b| a <= b)?
+                    self.logic_bin_op(inst, *regs, &|a, b| a <= b, &|a, b| a <= b)?
                 }
                 InstructionType::Gt(regs) => {
-                    self.logic_bin_op(inst.clone(), *regs, &|a, b| a > b, &|a, b| a > b)?
+                    self.logic_bin_op(inst, *regs, &|a, b| a > b, &|a, b| a > b)?
                 }
                 InstructionType::Ge(regs) => {
-                    self.logic_bin_op(inst.clone(), *regs, &|a, b| a >= b, &|a, b| a >= b)?
+                    self.logic_bin_op(inst, *regs, &|a, b| a >= b, &|a, b| a >= b)?
                 }
                 InstructionType::Eql(regs) => {
-                    self.logic_bin_op(inst.clone(), *regs, &|a, b| a == b, &|a, b| a == b)?
+                    self.logic_bin_op(inst, *regs, &|a, b| a == b, &|a, b| a == b)?
                 }
                 InstructionType::Call(_) => todo!(),
                 InstructionType::CallDirect(SymRegs(sym, regs)) => {
@@ -403,13 +405,13 @@ impl Interpret {
                     let func = self.program.funcs.get(sym).unwrap();
                     let res = self.run_func(func.clone(), vals)?;
                     match res {
-                        Some(value) => self.set(inst.id, value)?,
+                        Some(value) => self.set(inst_id, value)?,
                         None => (),
                     };
                 }
                 InstructionType::Arg(ImmI(index)) => {
                     let val = self.args.last().unwrap()[*index as usize];
-                    self.set(inst.id, val)?;
+                    self.set(inst_id, val)?;
                 }
                 InstructionType::Ret(_) | InstructionType::Exit(_) => {
                     terminated = true;

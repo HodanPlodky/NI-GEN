@@ -8,9 +8,9 @@ use std::{
 use crate::inst::{InstructionType, TerminatorBranch, TerminatorJump};
 
 /// Id of the instruction
-/// the bool flag signifies if the instruction
-/// is part of the global space
-pub type InstUUID = (bool, usize, usize);
+/// it is the index into the instruction store
+#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct InstUUID(usize);
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Instruction {
@@ -31,7 +31,7 @@ impl From<Instruction> for Register {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RegType {
     Void,
     Int,
@@ -44,7 +44,7 @@ pub type Symbol = String;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BasicBlock {
     predecesors: Vec<BBIndex>,
-    pub instruction: Vec<Instruction>,
+    pub instruction: Vec<InstUUID>,
 }
 
 impl Default for BasicBlock {
@@ -57,7 +57,7 @@ impl Default for BasicBlock {
 }
 
 impl Deref for BasicBlock {
-    type Target = Vec<Instruction>;
+    type Target = Vec<InstUUID>;
 
     fn deref(&self) -> &Self::Target {
         &self.instruction
@@ -125,21 +125,6 @@ impl Function {
     pub fn get_used_regs(&self) -> Vec<Register> {
         self.iter().map(|x| x.get_used_regs()).flatten().collect()
     }
-
-    pub fn get_type(&self, reg: Register) -> RegType {
-        //let (_, bb_index, inst_index) = reg;
-        //self.blocks[bb_index][inst_index].reg_type.clone()
-        
-        for bb in &self.blocks {
-            for inst in &bb.instruction {
-                if inst.id == reg {
-                    return inst.reg_type.clone()
-                }
-            }
-        }
-
-        unreachable!()
-    }
 }
 
 impl Default for Function {
@@ -167,8 +152,35 @@ impl DerefMut for Function {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct InstStore {
+    data: Vec<Instruction>,
+}
+
+impl Deref for InstStore {
+    type Target = Vec<Instruction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl InstStore {
+    pub fn get_next_id(&self) -> InstUUID {
+        InstUUID(self.data.len())
+    }
+
+    pub fn add_inst(&mut self, inst: InstructionType, reg_type: RegType) -> InstUUID {
+        let id = self.get_next_id();
+        let inst = Instruction::new(id, reg_type, inst);
+        self.data.push(inst);
+        id
+    }
+}
+
 #[derive(Debug)]
 pub struct IrProgram {
+    pub store: InstStore,
     pub glob: Function,
     pub funcs: HashMap<String, Function>,
 }
@@ -176,6 +188,7 @@ pub struct IrProgram {
 impl Default for IrProgram {
     fn default() -> Self {
         Self {
+            store: InstStore::default(),
             glob: Function {
                 name: "global".to_string(),
                 arg_count: 0,
@@ -184,5 +197,15 @@ impl Default for IrProgram {
             },
             funcs: HashMap::new(),
         }
+    }
+}
+
+impl IrProgram {
+    pub fn get_type(&self, reg: Register) -> RegType {
+        self.store[reg.0].reg_type
+    }
+
+    pub fn get_inst(&self, inst_id: InstUUID) -> &Instruction {
+        &self.store[inst_id.0]
     }
 }

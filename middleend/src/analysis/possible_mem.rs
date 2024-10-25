@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     analysis::lattice::Lattice,
     inst::{InstructionType, RegReg, SymRegs},
-    ir::{Function, Register},
+    ir::{Function, Instruction, Register},
 };
 
 use super::{
     const_mem::MemoryPlace,
-    dataflow::{DataFlowAnalysis, DataflowType},
+    dataflow::{DataFlowAnalysis, DataflowType, InstPos},
     lattice::{MapLattice, PowerSetLattice},
 };
 
@@ -79,18 +79,16 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, HashSet<Register>>, PossibleL
 
     fn transfer_fun(
         &self,
-        inst: crate::ir::InstUUID,
+        inst: &Instruction,
+        pos: InstPos,
         state: HashMap<MemoryPlace, HashSet<Register>>,
     ) -> HashMap<MemoryPlace, HashSet<Register>> {
         use InstructionType::*;
-
-        let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
-        match inst.data {
+        let (_, bb_index, inst_index) = pos;
+        match &inst.data {
             St(RegReg(addr, reg)) => {
                 let mut state = state;
-                state.get_mut(&MemoryPlace(addr)).unwrap().insert(reg);
+                state.get_mut(&MemoryPlace(*addr)).unwrap().insert(*reg);
                 state
             }
             CallDirect(SymRegs(_, regs)) => {

@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use crate::{
     inst::InstructionType,
-    ir::{Function, InstUUID, Register},
+    ir::{Function, InstUUID, Instruction, Register},
 };
 
 use super::{
-    dataflow::{DataFlowAnalysis, DataflowType},
+    dataflow::{DataFlowAnalysis, DataflowType, InstPos},
     lattice::{Lattice, PowerSetLattice},
 };
 
@@ -48,12 +48,14 @@ impl<'a> DataFlowAnalysis<'a, HashSet<Register>, PowerSetLattice<Register>>
         DataflowType::Backwards
     }
 
-    fn transfer_fun(&self, inst: InstUUID, state: HashSet<Register>) -> HashSet<Register> {
+    fn transfer_fun(
+        &self,
+        inst: &Instruction,
+        _pos: InstPos,
+        state: HashSet<Register>,
+    ) -> HashSet<Register> {
         use InstructionType::*;
 
-        let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
         match inst.data {
             Ret(_) | Exit(_) => self.inner_lattice.bot(),
             Retr(_) => HashSet::from_iter(inst.data.get_regs().into_iter()),

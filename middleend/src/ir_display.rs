@@ -9,11 +9,7 @@ use crate::{
 };
 
 fn reg_view(reg: Register) -> String {
-    if reg.0 {
-        "g(".to_string() + reg.1.to_string().as_str() + "," + reg.2.to_string().as_str() + ")"
-    } else {
-        "(".to_string() + reg.1.to_string().as_str() + "," + reg.2.to_string().as_str() + ")"
-    }
+    format!("%{reg}")
 }
 
 impl Display for InstructionType {

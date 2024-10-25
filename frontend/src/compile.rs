@@ -42,14 +42,12 @@ impl From<IrBuilderError> for IrCompErr {
 
 struct IrCompiler {
     env: Vec<Env>,
-    ir_builder: IrBuilder,
 }
 
 impl Default for IrCompiler {
     fn default() -> Self {
         Self {
             env: vec![HashMap::new()],
-            ir_builder: IrBuilder::default(),
         }
     }
 }
@@ -66,17 +64,17 @@ impl From<TypeDef> for RegType {
 
 impl IrCompiler {
     fn compile(&mut self, prog: Program) -> Result<IrProgram, IrCompErr> {
+        let mut ir_builder = IrBuilder::default();
         for top in prog.items {
             match top {
-                TopLevel::Function(fn_def) => self.function(fn_def)?,
+                TopLevel::Function(fn_def) => self.function(fn_def, &mut ir_builder)?,
                 TopLevel::Var(_) => todo!(),
                 TopLevel::Structure(_) => todo!(),
             }
         }
-        self.ir_builder.add(I::Exit(Terminator), RegType::Void);
+        ir_builder.add(I::Exit(Terminator), RegType::Void);
 
-        let builder = std::mem::take(&mut self.ir_builder);
-        let res = builder.create();
+        let res = ir_builder.create();
         //println!("{}", res);
         Ok(res)
     }
@@ -401,11 +399,12 @@ impl IrCompiler {
         Ok(())
     }
 
-    fn function(&mut self, func: FnDef) -> Result<(), IrCompErr> {
+    fn function(&mut self, func: FnDef, ir_builder: &mut IrBuilder) -> Result<(), IrCompErr> {
         if let Some(body) = &func.body {
             let mut fn_b = FunctionBuilder::new(
                 func.header.params.len() as u64,
                 func.header.ret_type.clone().into(),
+                &mut ir_builder.store,
             );
 
             for index in 0..func.header.params.len() {
@@ -423,7 +422,8 @@ impl IrCompiler {
             if !fn_b.terminated() {
                 fn_b.add(I::Ret(Terminator), RegType::Void);
             }
-            self.ir_builder.add_fn(fn_b.create(&func.header.name))?;
+            let res = fn_b.create(&func.header.name);
+            ir_builder.add_fn(res)?;
         }
         Ok(())
     }

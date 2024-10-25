@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    dataflow::{DataFlowAnalysis, DataflowType},
+    dataflow::{DataFlowAnalysis, DataflowType, InstPos},
     lattice::{FlatElem, FlatLattice, MapLattice},
 };
 
@@ -78,18 +78,16 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
 
     fn transfer_fun(
         &self,
-        inst: crate::ir::InstUUID,
+        inst: &crate::ir::Instruction,
+        pos: InstPos,
         state: HashMap<MemoryPlace, FlatElem<Register>>,
     ) -> HashMap<MemoryPlace, FlatElem<Register>> {
         use InstructionType::*;
-
-        let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
-        match inst.data {
+        let (_, bb_idx, inst_idx) = pos;
+        match &inst.data {
             St(RegReg(addr, reg)) => {
                 let mut state = state;
-                state.insert(MemoryPlace(addr), FlatElem::Value(reg));
+                state.insert(MemoryPlace(*addr), FlatElem::Value(*reg));
                 state
             }
             CallDirect(SymRegs(_, regs)) | SysCall(ImmIRegs(_, regs)) => {
@@ -101,7 +99,7 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
                 }
                 state
             }
-            _ if bb_index == 0 && inst_index == 0 => self.inner_lattice.bot(),
+            _ if bb_idx == 0 && inst_idx == 0 => self.inner_lattice.bot(),
             _ => state,
         }
     }
