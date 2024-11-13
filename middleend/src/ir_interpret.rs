@@ -304,14 +304,14 @@ impl Interpret {
             if terminated {
                 return Err(InterpretError::BasicBlockConti);
             }
-            let inst = self.program.get_inst(inst_id)
-            match &inst.data {
+            let tmp_inst = self.program.get_inst(inst_id).clone();
+            match &tmp_inst.data {
                 InstructionType::Ldi(ImmI(imm)) => self.set(inst_id, Value::Signed(*imm))?,
                 InstructionType::Ldc(ImmC(imm)) => self.set(inst_id, Value::Char(*imm as u8))?,
                 InstructionType::Ld(Reg(reg)) => {
                     let val = self.get(reg.clone())?;
                     let val = match self.program.get_type(inst_id) {
-                        RegType::Void => Err(InterpretError::VoidRegister(inst.clone())),
+                        RegType::Void => Err(InterpretError::VoidRegister(tmp_inst.clone())),
                         RegType::Int => self.mem.read_int(val),
                         RegType::Char => self.mem.read_char(val),
                     }?;
@@ -335,7 +335,7 @@ impl Interpret {
                     let index = self.get(*index)?;
                     let (start, index) = match (start, index) {
                         (Value::Signed(start), Value::Signed(index)) => Ok((start, index)),
-                        _ => Err(InterpretError::InvalidOp(inst.clone())),
+                        _ => Err(InterpretError::InvalidOp(tmp_inst.clone())),
                     }?;
 
                     self.set(
@@ -344,34 +344,34 @@ impl Interpret {
                     )?
                 }
                 InstructionType::Add(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a + b, &|a, b| a + b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a + b, &|a, b| a + b)?
                 }
                 InstructionType::Sub(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a - b, &|a, b| a - b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a - b, &|a, b| a - b)?
                 }
                 InstructionType::Mul(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a * b, &|a, b| a * b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a * b, &|a, b| a * b)?
                 }
                 InstructionType::Div(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a / b, &|a, b| a / b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a / b, &|a, b| a / b)?
                 }
                 InstructionType::Mod(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a % b, &|a, b| a % b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a % b, &|a, b| a % b)?
                 }
                 InstructionType::Shr(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a >> b, &|a, b| a >> b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a >> b, &|a, b| a >> b)?
                 }
                 InstructionType::Shl(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a << b, &|a, b| a << b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a << b, &|a, b| a << b)?
                 }
                 InstructionType::And(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a & b, &|a, b| a & b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a & b, &|a, b| a & b)?
                 }
                 InstructionType::Or(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a | b, &|a, b| a | b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a | b, &|a, b| a | b)?
                 }
                 InstructionType::Xor(regs) => {
-                    self.binary_op(inst, *regs, &|a, b| a ^ b, &|a, b| a ^ b)?
+                    self.binary_op(&tmp_inst, *regs, &|a, b| a ^ b, &|a, b| a ^ b)?
                 }
                 InstructionType::Neg(Reg(reg)) => {
                     let val = self.get(*reg)?;
@@ -382,19 +382,19 @@ impl Interpret {
                     self.set(inst_id, val)?;
                 }
                 InstructionType::Lt(regs) => {
-                    self.logic_bin_op(inst, *regs, &|a, b| a < b, &|a, b| a < b)?
+                    self.logic_bin_op(&tmp_inst, *regs, &|a, b| a < b, &|a, b| a < b)?
                 }
                 InstructionType::Le(regs) => {
-                    self.logic_bin_op(inst, *regs, &|a, b| a <= b, &|a, b| a <= b)?
+                    self.logic_bin_op(&tmp_inst, *regs, &|a, b| a <= b, &|a, b| a <= b)?
                 }
                 InstructionType::Gt(regs) => {
-                    self.logic_bin_op(inst, *regs, &|a, b| a > b, &|a, b| a > b)?
+                    self.logic_bin_op(&tmp_inst, *regs, &|a, b| a > b, &|a, b| a > b)?
                 }
                 InstructionType::Ge(regs) => {
-                    self.logic_bin_op(inst, *regs, &|a, b| a >= b, &|a, b| a >= b)?
+                    self.logic_bin_op(&tmp_inst, *regs, &|a, b| a >= b, &|a, b| a >= b)?
                 }
                 InstructionType::Eql(regs) => {
-                    self.logic_bin_op(inst, *regs, &|a, b| a == b, &|a, b| a == b)?
+                    self.logic_bin_op(&tmp_inst, *regs, &|a, b| a == b, &|a, b| a == b)?
                 }
                 InstructionType::Call(_) => todo!(),
                 InstructionType::CallDirect(SymRegs(sym, regs)) => {
@@ -425,7 +425,7 @@ impl Interpret {
                 }
                 InstructionType::Jmp(TerminatorJump(n)) => {
                     terminated = true;
-                    next = Some(n)
+                    next = Some(*n)
                 }
                 InstructionType::Branch(TerminatorBranch(reg, ok, fail)) => {
                     let val = match self.get(*reg)? {
@@ -433,7 +433,7 @@ impl Interpret {
                         v => Err(InterpretError::InvalidCond(v)),
                     }?;
                     terminated = true;
-                    next = if val { Some(ok) } else { Some(fail) }
+                    next = if val { Some(*ok) } else { Some(*fail) }
                 }
                 InstructionType::Print(Reg(reg)) => {
                     let val = self.get(*reg)?;
@@ -450,7 +450,7 @@ impl Interpret {
                 }
             }
         }
-        Ok(next.copied())
+        Ok(next)
     }
 }
 
@@ -470,11 +470,12 @@ mod tests {
     fn basic_interpret_test() {
         let mut builder = IrBuilder::default();
         builder.add(I::Ret(Terminator), RegType::Void);
-        let mut fn_b = FunctionBuilder::new(0, RegType::Void);
+        let mut fn_b = FunctionBuilder::new(0, RegType::Void, &mut builder.store);
         let reg = fn_b.add(I::Ldi(ImmI(5)), RegType::Int);
         fn_b.add(I::Print(Reg(reg)), RegType::Void);
         fn_b.add(I::Ret(Terminator), RegType::Void);
-        builder.add_fn(fn_b.create("main")).unwrap();
+        let f = fn_b.create("main");
+        builder.add_fn(f).unwrap();
 
         let mut inter = Interpret::new(builder.create(), 1024);
         inter.run().unwrap();

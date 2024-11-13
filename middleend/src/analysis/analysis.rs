@@ -18,7 +18,7 @@ where
         .iter()
         .map(|(name, func)| {
             dataflowanalysis.set_function(func);
-            (name.clone(), dataflowanalysis.analyze())
+            (name.clone(), dataflowanalysis.analyze(&program.store))
         })
         .collect()
 }

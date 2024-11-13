@@ -5,11 +5,12 @@ use crate::{
         ImmC, ImmI, ImmIRegs, InstructionType, Reg, RegReg, RegRegImm, RegRegs, SymRegs,
         TerminatorBranch, TerminatorJump, TerminatorReg,
     },
-    ir::{BasicBlock, Function, Instruction, IrProgram, RegType, Register},
+    ir::{BasicBlock, Function, InstStore, Instruction, IrProgram, RegType, Register},
 };
 
 fn reg_view(reg: Register) -> String {
-    format!("%{reg}")
+    let id = reg.val();
+    format!("%{id}")
 }
 
 impl Display for InstructionType {
@@ -127,6 +128,7 @@ impl Display for Instruction {
     }
 }
 
+/*
 impl Display for BasicBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for i in self.instruction.iter() {
@@ -135,9 +137,18 @@ impl Display for BasicBlock {
         Ok(())
     }
 }
+*/
+impl BasicBlock {
+    fn display(&self, f: &mut std::fmt::Formatter<'_>, store: &InstStore) -> std::fmt::Result {
+        for i in self.instruction.iter() {
+            writeln!(f, "\t{}", store.get(*i))?;
+        }
+        Ok(())
+    }
+}
 
-impl Display for Function {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Function {
+    fn display(&self, f: &mut std::fmt::Formatter<'_>, store: &InstStore) -> std::fmt::Result {
         writeln!(
             f,
             "function {}({}) : {} {{",
@@ -145,7 +156,7 @@ impl Display for Function {
         )?;
         for i in 0..self.blocks.len() {
             writeln!(f, "BB{}:", i)?;
-            write!(f, "{}", self.blocks[i])?;
+            self.blocks[i].display(f, store)?;
         }
         write!(f, "}}")
     }
@@ -154,10 +165,10 @@ impl Display for Function {
 impl Display for IrProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "global:")?;
-        write!(f, "{}", self.glob)?;
+        self.glob.display(f, &self.store)?;
         for func in self.funcs.values() {
             writeln!(f, "")?;
-            writeln!(f, "{}", func)?;
+            func.display(f, &self.store)?;
         }
         Ok(())
     }

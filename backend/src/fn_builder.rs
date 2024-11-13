@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use middleend::{
     analysis::{dataflow::DataFlowAnalysis, live::LiveRegisterAnalysis},
-    ir::Function,
+    ir::{Function, InstStore},
 };
 
 use crate::{
@@ -25,10 +25,10 @@ pub struct AsmFunctionBuilder<'a> {
 }
 
 impl<'a> AsmFunctionBuilder<'a> {
-    pub fn new(name: String, ir_function: &'a Function) -> Self {
+    pub fn new(name: String, ir_function: &'a Function, store: &InstStore) -> Self {
         let mut lifeanalysis = LiveRegisterAnalysis::new(ir_function);
         Self {
-            liveness: lifeanalysis.analyze(),
+            liveness: lifeanalysis.analyze(store),
             name,
             stacksize: 0,
             actual_bb: 0,

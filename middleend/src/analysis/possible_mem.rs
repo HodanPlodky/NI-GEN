@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     analysis::lattice::Lattice,
     inst::{InstructionType, RegReg, SymRegs},
-    ir::{Function, Instruction, Register},
+    ir::{Function, InstStore, Instruction, Register},
 };
 
 use super::{
@@ -16,32 +16,34 @@ type PossibleLattice = MapLattice<PowerSetLattice<Register>, MemoryPlace, HashSe
 
 pub struct PossibleMemAnalysis<'a> {
     function: &'a Function,
+    store: &'a InstStore,
     inner_lattice: PossibleLattice,
 }
 
 impl<'a> PossibleMemAnalysis<'a> {
-    pub fn new(function: &'a Function) -> Self {
-        let regs = HashSet::from_iter(function.get_used_regs().into_iter());
+    pub fn new(function: &'a Function, store: &'a InstStore) -> Self {
+        let regs = HashSet::from_iter(function.get_used_regs(store).into_iter());
         Self {
             function,
+            store,
             inner_lattice: MapLattice::new(
-                PossibleMemAnalysis::get_stores(function),
+                PossibleMemAnalysis::get_stores(function, store),
                 PowerSetLattice::new(regs),
             ),
         }
     }
 
-    fn get_stores(function: &'a Function) -> HashSet<MemoryPlace> {
+    fn get_stores(function: &'a Function, store: &InstStore) -> HashSet<MemoryPlace> {
         function
             .blocks
             .iter()
             .map(|x| {
                 x.iter()
-                    .filter(|x| match x.data {
+                    .filter(|x| match store.get(**x).data {
                         InstructionType::St(_) => true,
                         _ => false,
                     })
-                    .map(|x| match x.data {
+                    .map(|x| match store.get(*x).data {
                         InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
                         _ => unreachable!(),
                     })
@@ -68,8 +70,8 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, HashSet<Register>>, PossibleL
     fn set_function(&mut self, func: &'a Function) {
         self.function = func;
         self.inner_lattice = MapLattice::new(
-            PossibleMemAnalysis::get_stores(func),
-            PowerSetLattice::new(func.get_used_regs().into_iter().collect()),
+            PossibleMemAnalysis::get_stores(func, self.store),
+            PowerSetLattice::new(func.get_used_regs(self.store).into_iter().collect()),
         );
     }
 

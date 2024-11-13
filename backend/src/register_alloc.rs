@@ -2,7 +2,7 @@
 #[allow(dead_code)]
 use std::collections::{HashMap, HashSet};
 
-use middleend::ir::BasicBlock;
+use middleend::ir::{BasicBlock, InstStore};
 
 use crate::insts::Rd;
 
@@ -30,26 +30,26 @@ pub struct NaiveAllocator {
 
 #[allow(dead_code)]
 impl NaiveAllocator {
-    pub fn new(function: &middleend::ir::Function) -> Self {
+    pub fn new(function: &middleend::ir::Function, store: &InstStore) -> Self {
         let mut res = Self {
             freeowned: vec![5, 6, 7, 28],
             registers: HashMap::new(),
             stacksize: 0,
         };
-        res.allocate(function);
+        res.allocate(function, store);
         res
     }
 
-    fn allocate(&mut self, prog: &middleend::ir::Function) {
+    fn allocate(&mut self, prog: &middleend::ir::Function, store: &InstStore) {
         for block in prog.blocks.iter() {
             for inst in block.iter() {
-                match &inst.data {
+                match &store.get(*inst).data {
                     middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
                         self.registers
-                            .insert(inst.id, ValueCell::Value(self.stacksize));
+                            .insert(*inst, ValueCell::Value(self.stacksize));
                         self.stacksize += size;
                     }
-                    _ => self.allocate_reg(inst.id),
+                    _ => self.allocate_reg(*inst),
                 }
             }
         }

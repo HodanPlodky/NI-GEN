@@ -1,9 +1,6 @@
 use crate::{
     inst::InstructionType,
-    ir::{
-        BBIndex, BasicBlock, Function, InstStore, InstUUID, IrProgram, RegType,
-        Register,
-    },
+    ir::{BBIndex, BasicBlock, Function, InstStore, InstUUID, IrProgram, RegType, Register},
     optimalizations::death_store_load::remove_store_load,
 };
 
@@ -72,7 +69,7 @@ impl IrBuilder {
 }
 
 pub struct FunctionBuilder<'a> {
-    store: &'a mut InstStore,
+    pub store: &'a mut InstStore,
     arg_count: u64,
     ret_type: RegType,
     act_bb: BBIndex,
@@ -121,7 +118,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     pub fn terminated(&self) -> bool {
-        self.blocks[self.act_bb].terminated()
+        self.blocks[self.act_bb].terminated(self.store)
     }
 
     pub fn create(self, name: &str) -> Function {
@@ -132,7 +129,7 @@ impl<'a> FunctionBuilder<'a> {
             blocks: self.blocks,
         };
 
-        while remove_store_load(&mut result) {}
+        while remove_store_load(&mut result, self.store) {}
 
         result
     }

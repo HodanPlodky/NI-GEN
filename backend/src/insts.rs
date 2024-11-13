@@ -16,7 +16,7 @@ pub enum Rd {
 impl Display for Rd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Rd::Ir(reg) => write!(f, "ir=({}, {})", reg.1, reg.2),
+            Rd::Ir(reg) => write!(f, "ir=({})", reg.val()),
             Rd::ArgReg(number) => write!(f, "a{}", number),
             Rd::Zero => write!(f, "zero"),
             Rd::Sp => write!(f, "sp"),

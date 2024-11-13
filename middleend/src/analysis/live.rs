@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     inst::InstructionType,
-    ir::{Function, InstUUID, Instruction, Register},
+    ir::{Function, InstStore, InstUUID, Instruction, Register},
 };
 
 use super::{
@@ -21,7 +21,7 @@ impl<'a> LiveRegisterAnalysis<'a> {
             function
                 .blocks
                 .iter()
-                .map(|x| x.iter().map(|y| y.id))
+                .map(|x| x.iter().map(|y| *y))
                 .flatten(),
         );
         let inner_lattice = PowerSetLattice::new(registers);

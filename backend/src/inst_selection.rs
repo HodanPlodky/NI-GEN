@@ -3,7 +3,7 @@ use middleend::{
         ImmC, ImmI, ImmIRegs, Reg, RegReg, RegRegImm, SymRegs, TerminatorBranch, TerminatorJump,
         TerminatorReg,
     },
-    ir::Instruction,
+    ir::{InstStore, Instruction},
 };
 
 use crate::{insts::AsmInstruction, AsmFunctionBuilder};
@@ -13,6 +13,7 @@ pub fn basic_instruction_selection(
     place: middleend::ir::InstUUID,
     builder: &mut AsmFunctionBuilder,
     function: &middleend::ir::Function,
+    store: &InstStore,
 ) {
     use crate::insts::Rd::*;
     let reg = inst.id;
@@ -27,7 +28,7 @@ pub fn basic_instruction_selection(
             builder.add_instruction(AsmInstruction::Ld(Ir(reg), Ir(rs1), 0));
         }
         &middleend::inst::InstructionType::St(RegReg(rs1, rs2)) => {
-            match function.get_type(rs2) {
+            match store.get(rs2).reg_type {
                 middleend::ir::RegType::Void => panic!(),
                 middleend::ir::RegType::Int => {
                     builder.add_instruction(AsmInstruction::Sd(Ir(rs2), Ir(rs1), 0))

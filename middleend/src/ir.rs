@@ -12,6 +12,12 @@ use crate::inst::{InstructionType, TerminatorBranch, TerminatorJump};
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct InstUUID(usize);
 
+impl InstUUID {
+    pub fn val(&self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Instruction {
     pub id: InstUUID,
@@ -79,13 +85,13 @@ impl BasicBlock {
         self.predecesors.clone()
     }
 
-    pub fn succ(&self) -> Vec<BBIndex> {
+    pub fn succ(&self, store: &InstStore) -> Vec<BBIndex> {
         use InstructionType::*;
         let inst = match self.last() {
             Some(inst) => inst,
             None => return vec![],
         };
-        match &inst.data {
+        match &store.get(*inst).data {
             Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
             Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
                 vec![*bbindex_true, *bbindex_false]
@@ -94,15 +100,18 @@ impl BasicBlock {
         }
     }
 
-    pub fn get_used_regs(&self) -> Vec<Register> {
-        self.iter().map(|x| x.data.get_regs()).flatten().collect()
+    pub fn get_used_regs(&self, store: &InstStore) -> Vec<Register> {
+        self.iter()
+            .map(|x| store.get(*x).data.get_regs())
+            .flatten()
+            .collect()
     }
 
-    pub fn terminated(&self) -> bool {
+    pub fn terminated(&self, store: &InstStore) -> bool {
         if self.is_empty() {
             false
         } else {
-            self.last().unwrap().data.terminator()
+            store.get(*self.last().unwrap()).data.terminator()
         }
     }
 }
@@ -122,8 +131,11 @@ impl Function {
         &self.blocks[0]
     }
 
-    pub fn get_used_regs(&self) -> Vec<Register> {
-        self.iter().map(|x| x.get_used_regs()).flatten().collect()
+    pub fn get_used_regs(&self, store: &InstStore) -> Vec<Register> {
+        self.iter()
+            .map(|x| x.get_used_regs(store))
+            .flatten()
+            .collect()
     }
 }
 
@@ -175,6 +187,14 @@ impl InstStore {
         let inst = Instruction::new(id, reg_type, inst);
         self.data.push(inst);
         id
+    }
+
+    pub fn get(&self, id: InstUUID) -> &Instruction {
+        &self.data[id.0]
+    }
+
+    pub fn get_mut(&mut self, id: InstUUID) -> &mut Instruction {
+        &mut self.data[id.0]
     }
 }
 

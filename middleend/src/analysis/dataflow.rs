@@ -1,4 +1,4 @@
-use crate::ir::{BasicBlock, Function, InstUUID, Instruction};
+use crate::ir::{BasicBlock, Function, InstStore, InstUUID, Instruction};
 
 use super::lattice::{FunctionLattice, Lattice};
 
@@ -30,13 +30,13 @@ where
     fn transfer_fun(&self, inst: &Instruction, pos: InstPos, state: A) -> A;
 
     // returns possitions
-    fn before(&self, inst: InstPos) -> Vec<InstPos> {
+    fn before(&self, inst: InstPos, store: &InstStore) -> Vec<InstPos> {
         let (g, bb_index, inst_index) = inst;
         let func = self.function();
         match self.direction() {
-            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == inst_index => func
-                .blocks[bb_index]
-                .succ()
+            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == inst_index => func.blocks
+                [bb_index]
+                .succ(store)
                 .into_iter()
                 .map(|x| (false, x, 0))
                 .collect(),
@@ -52,9 +52,9 @@ where
         }
     }
 
-    fn join(&self, inst: InstPos, state: &Vec<Vec<A>>) -> A {
+    fn join(&self, inst: InstPos, state: &Vec<Vec<A>>, store: &InstStore) -> A {
         let prev = self
-            .before(inst)
+            .before(inst, store)
             .into_iter()
             .map(|(_, bb, inst)| state[bb][inst].clone());
         prev.fold(self.inner_lattice().bot(), |acc, x| {
@@ -62,31 +62,43 @@ where
         })
     }
 
-    fn fun_block(&self, state: &Vec<Vec<A>>, block_idx: usize, global: bool) -> Vec<A> {
+    fn fun_block(
+        &self,
+        state: &Vec<Vec<A>>,
+        block_idx: usize,
+        global: bool,
+        store: &InstStore,
+    ) -> Vec<A> {
         (0..self.function()[block_idx].len())
             .map(|x| (global, block_idx, x))
-            .map(|pos| self.transfer_fun(&self.function()[block_idx][pos.2], pos, self.join(pos, state)))
+            .map(|pos| {
+                self.transfer_fun(
+                    store.get(self.function()[block_idx][pos.2]),
+                    pos,
+                    self.join(pos, state, store),
+                )
+            })
             .collect()
     }
 
     /// function which aplies the tranfer function on
     /// every instuction in all basic blocks
-    fn fun(&self, state: Vec<Vec<A>>) -> Vec<Vec<A>> {
+    fn fun(&self, state: Vec<Vec<A>>, store: &InstStore) -> Vec<Vec<A>> {
         let func = self.function();
         func.blocks
             .iter()
             .enumerate()
-            .map(|(idx, _)| self.fun_block(&state, idx, false))
+            .map(|(idx, _)| self.fun_block(&state, idx, false, store))
             .collect()
     }
 
     /// basic algorighm for finding fixed point
-    fn analyze(&mut self) -> Vec<Vec<A>> {
+    fn analyze(&mut self, store: &InstStore) -> Vec<Vec<A>> {
         let fun_lattice = FunctionLattice::<A>::new(self.function(), self.inner_lattice());
         let mut x = fun_lattice.bot();
         loop {
             let t = x.clone();
-            x = self.fun(x);
+            x = self.fun(x, store);
 
             if t == x {
                 break;
