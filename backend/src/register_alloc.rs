@@ -105,7 +105,6 @@ impl<'a> LinearAllocator<'a> {
         liveness: Vec<Vec<HashSet<middleend::ir::Register>>>,
         store: &'a InstStore,
     ) -> Self {
-        println!("{:?}", used_ir);
         let mut res = Self {
             liveness,
             freeowned: vec![5, 6, 7, 28],
@@ -133,7 +132,6 @@ impl<'a> LinearAllocator<'a> {
         for (bb_index, block) in fun.blocks.iter().enumerate() {
             for inst_index in 0..block.len() {
                 let inst_id = block[inst_index];
-                println!("{}", self.store.get(inst_id));
                 if self.used_ir.contains(&Rd::Ir(inst_id)) {
                     match &self.store.get(inst_id).data {
                         middleend::inst::InstructionType::Alloca(middleend::inst::ImmI(size)) => {
@@ -160,7 +158,6 @@ impl<'a> LinearAllocator<'a> {
         place: Place,
         blocks: &Vec<BasicBlock>,
     ) {
-        println!("yoyoy");
         if self.freeowned.len() <= 0 {
             let offset = ValueCell::StackOffset(self.stacksize);
             self.stacksize += 8;
@@ -214,8 +211,6 @@ impl<'a> LinearAllocator<'a> {
 
 impl RegAllocator for LinearAllocator<'_> {
     fn get_location(&self, reg: middleend::ir::Register) -> ValueCell {
-        println!("{:?}", reg);
-        println!("{:?}", self.registers);
         self.registers[&reg]
     }
 

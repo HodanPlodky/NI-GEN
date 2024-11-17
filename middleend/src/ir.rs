@@ -226,7 +226,6 @@ impl IrProgram {
     }
 
     pub fn get_inst(&self, inst_id: InstUUID) -> &Instruction {
-        println!("{:?}", self.store);
         &self.store[inst_id.0]
     }
 }
