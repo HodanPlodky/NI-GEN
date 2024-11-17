@@ -189,6 +189,17 @@ impl InstStore {
         id
     }
 
+    pub fn replace_inst(
+        &mut self,
+        id: InstUUID,
+        inst: InstructionType,
+        reg_type: RegType,
+    ) -> InstUUID {
+        let inst = Instruction::new(id, reg_type, inst);
+        self.data[id.0] = inst;
+        id
+    }
+
     pub fn get(&self, id: InstUUID) -> &Instruction {
         &self.data[id.0]
     }

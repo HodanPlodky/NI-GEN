@@ -30,9 +30,7 @@ pub fn remove_store_load(function: &mut Function, store: &mut InstStore) -> bool
                     match state.get(&MemoryPlace(addr)) {
                         Some(FlatElem::Value(val)) => {
                             change = true;
-                            let n_id =
-                                store.add_inst(InstructionType::Mov(Reg(*val)), inst.reg_type);
-                            bb[inst_index] = n_id;
+                            store.replace_inst(id, InstructionType::Mov(Reg(*val)), inst.reg_type);
                         }
                         Some(_) | None => (),
                     }
