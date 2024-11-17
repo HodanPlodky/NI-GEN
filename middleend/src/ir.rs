@@ -8,9 +8,15 @@ use std::{
 use crate::inst::{InstructionType, TerminatorBranch, TerminatorJump};
 
 /// Id of the instruction
-/// the bool flag signifies if the instruction
-/// is part of the global space
-pub type InstUUID = (bool, usize, usize);
+/// it is the index into the instruction store
+#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct InstUUID(usize);
+
+impl InstUUID {
+    pub fn val(&self) -> usize {
+        self.0
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Instruction {
@@ -31,7 +37,7 @@ impl From<Instruction> for Register {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RegType {
     Void,
     Int,
@@ -44,7 +50,7 @@ pub type Symbol = String;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct BasicBlock {
     predecesors: Vec<BBIndex>,
-    pub instruction: Vec<Instruction>,
+    pub instruction: Vec<InstUUID>,
 }
 
 impl Default for BasicBlock {
@@ -57,7 +63,7 @@ impl Default for BasicBlock {
 }
 
 impl Deref for BasicBlock {
-    type Target = Vec<Instruction>;
+    type Target = Vec<InstUUID>;
 
     fn deref(&self) -> &Self::Target {
         &self.instruction
@@ -79,13 +85,13 @@ impl BasicBlock {
         self.predecesors.clone()
     }
 
-    pub fn succ(&self) -> Vec<BBIndex> {
+    pub fn succ(&self, store: &InstStore) -> Vec<BBIndex> {
         use InstructionType::*;
         let inst = match self.last() {
             Some(inst) => inst,
             None => return vec![],
         };
-        match &inst.data {
+        match &store.get(*inst).data {
             Jmp(TerminatorJump(bbindex)) => vec![*bbindex],
             Branch(TerminatorBranch(_, bbindex_true, bbindex_false)) => {
                 vec![*bbindex_true, *bbindex_false]
@@ -94,15 +100,18 @@ impl BasicBlock {
         }
     }
 
-    pub fn get_used_regs(&self) -> Vec<Register> {
-        self.iter().map(|x| x.data.get_regs()).flatten().collect()
+    pub fn get_used_regs(&self, store: &InstStore) -> Vec<Register> {
+        self.iter()
+            .map(|x| store.get(*x).data.get_regs())
+            .flatten()
+            .collect()
     }
 
-    pub fn terminated(&self) -> bool {
+    pub fn terminated(&self, store: &InstStore) -> bool {
         if self.is_empty() {
             false
         } else {
-            self.last().unwrap().data.terminator()
+            store.get(*self.last().unwrap()).data.terminator()
         }
     }
 }
@@ -122,23 +131,11 @@ impl Function {
         &self.blocks[0]
     }
 
-    pub fn get_used_regs(&self) -> Vec<Register> {
-        self.iter().map(|x| x.get_used_regs()).flatten().collect()
-    }
-
-    pub fn get_type(&self, reg: Register) -> RegType {
-        //let (_, bb_index, inst_index) = reg;
-        //self.blocks[bb_index][inst_index].reg_type.clone()
-        
-        for bb in &self.blocks {
-            for inst in &bb.instruction {
-                if inst.id == reg {
-                    return inst.reg_type.clone()
-                }
-            }
-        }
-
-        unreachable!()
+    pub fn get_used_regs(&self, store: &InstStore) -> Vec<Register> {
+        self.iter()
+            .map(|x| x.get_used_regs(store))
+            .flatten()
+            .collect()
     }
 }
 
@@ -167,8 +164,54 @@ impl DerefMut for Function {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct InstStore {
+    data: Vec<Instruction>,
+}
+
+impl Deref for InstStore {
+    type Target = Vec<Instruction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl InstStore {
+    pub fn get_next_id(&self) -> InstUUID {
+        InstUUID(self.data.len())
+    }
+
+    pub fn add_inst(&mut self, inst: InstructionType, reg_type: RegType) -> InstUUID {
+        let id = self.get_next_id();
+        let inst = Instruction::new(id, reg_type, inst);
+        self.data.push(inst);
+        id
+    }
+
+    pub fn replace_inst(
+        &mut self,
+        id: InstUUID,
+        inst: InstructionType,
+        reg_type: RegType,
+    ) -> InstUUID {
+        let inst = Instruction::new(id, reg_type, inst);
+        self.data[id.0] = inst;
+        id
+    }
+
+    pub fn get(&self, id: InstUUID) -> &Instruction {
+        &self.data[id.0]
+    }
+
+    pub fn get_mut(&mut self, id: InstUUID) -> &mut Instruction {
+        &mut self.data[id.0]
+    }
+}
+
 #[derive(Debug)]
 pub struct IrProgram {
+    pub store: InstStore,
     pub glob: Function,
     pub funcs: HashMap<String, Function>,
 }
@@ -176,6 +219,7 @@ pub struct IrProgram {
 impl Default for IrProgram {
     fn default() -> Self {
         Self {
+            store: InstStore::default(),
             glob: Function {
                 name: "global".to_string(),
                 arg_count: 0,
@@ -184,5 +228,15 @@ impl Default for IrProgram {
             },
             funcs: HashMap::new(),
         }
+    }
+}
+
+impl IrProgram {
+    pub fn get_type(&self, reg: Register) -> RegType {
+        self.store[reg.0].reg_type
+    }
+
+    pub fn get_inst(&self, inst_id: InstUUID) -> &Instruction {
+        &self.store[inst_id.0]
     }
 }

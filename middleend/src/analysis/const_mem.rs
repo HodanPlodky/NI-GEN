@@ -3,11 +3,11 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     analysis::lattice::Lattice,
     inst::{ImmIRegs, InstructionType, RegReg, SymRegs},
-    ir::{Function, Register},
+    ir::{Function, InstStore, Register},
 };
 
 use super::{
-    dataflow::{DataFlowAnalysis, DataflowType},
+    dataflow::{DataFlowAnalysis, DataflowType, InstPos},
     lattice::{FlatElem, FlatLattice, MapLattice},
 };
 
@@ -18,32 +18,34 @@ type ConstLattice = MapLattice<FlatLattice<Register>, MemoryPlace, FlatElem<Regi
 
 pub struct ConstantMemoryAnalysis<'a> {
     function: &'a Function,
+    store: &'a InstStore,
     inner_lattice: ConstLattice,
 }
 
 impl<'a> ConstantMemoryAnalysis<'a> {
-    pub fn new(function: &'a Function) -> Self {
+    pub fn new(function: &'a Function, store: &'a InstStore) -> Self {
         Self {
             function,
+            store,
             inner_lattice: MapLattice::new(
-                ConstantMemoryAnalysis::get_stores(function),
+                ConstantMemoryAnalysis::get_stores(function, store),
                 FlatLattice::new(),
             ),
         }
     }
 
-    fn get_stores(function: &'a Function) -> HashSet<MemoryPlace> {
+    fn get_stores(function: &'a Function, store: &InstStore) -> HashSet<MemoryPlace> {
         function
             .blocks
             .iter()
             .map(|x| {
                 x.iter()
-                    .filter(|x| match x.data {
+                    .filter(|x| match &store.get(**x).data {
                         InstructionType::St(_) => true,
                         _ => false,
                     })
-                    .map(|x| match x.data {
-                        InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
+                    .map(|x| match &store.get(*x).data {
+                        InstructionType::St(RegReg(addr, _)) => MemoryPlace(*addr),
                         _ => unreachable!(),
                     })
                     .collect::<Vec<MemoryPlace>>()
@@ -68,8 +70,10 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
 
     fn set_function(&mut self, func: &'a Function) {
         self.function = func;
-        self.inner_lattice =
-            MapLattice::new(ConstantMemoryAnalysis::get_stores(func), FlatLattice::new());
+        self.inner_lattice = MapLattice::new(
+            ConstantMemoryAnalysis::get_stores(func, self.store),
+            FlatLattice::new(),
+        );
     }
 
     fn direction(&self) -> super::dataflow::DataflowType {
@@ -78,18 +82,16 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
 
     fn transfer_fun(
         &self,
-        inst: crate::ir::InstUUID,
+        inst: &crate::ir::Instruction,
+        pos: InstPos,
         state: HashMap<MemoryPlace, FlatElem<Register>>,
     ) -> HashMap<MemoryPlace, FlatElem<Register>> {
         use InstructionType::*;
-
-        let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
-        match inst.data {
+        let (_, bb_idx, inst_idx) = pos;
+        match &inst.data {
             St(RegReg(addr, reg)) => {
                 let mut state = state;
-                state.insert(MemoryPlace(addr), FlatElem::Value(reg));
+                state.insert(MemoryPlace(*addr), FlatElem::Value(*reg));
                 state
             }
             CallDirect(SymRegs(_, regs)) | SysCall(ImmIRegs(_, regs)) => {
@@ -101,7 +103,7 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, FlatElem<Register>>, ConstLat
                 }
                 state
             }
-            _ if bb_index == 0 && inst_index == 0 => self.inner_lattice.bot(),
+            _ if bb_idx == 0 && inst_idx == 0 => self.inner_lattice.bot(),
             _ => state,
         }
     }

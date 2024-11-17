@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     analysis::cubicsolver::CubicSolver,
     inst::{ImmIRegs, Reg, RegReg, RegRegImm, SymRegs},
-    ir::{BasicBlock, Function, InstUUID, Instruction, Register},
+    ir::{BasicBlock, Function, InstStore, InstUUID, Instruction, Register},
 };
 
 /// Position of the alloca
@@ -49,11 +49,11 @@ impl<'a> AndersenAnalysis<'a> {
         }
     }
 
-    pub fn analyze(&mut self) -> HashMap<Register, HashSet<Cell>> {
+    pub fn analyze(&mut self, store: &InstStore) -> HashMap<Register, HashSet<Cell>> {
         let mut solver: CubicSolver<Cell, Place> = CubicSolver::new();
 
         for bb in self.function.blocks.iter() {
-            self.analyze_bb(bb, &mut solver);
+            self.analyze_bb(bb, &mut solver, store);
         }
 
         solver
@@ -64,13 +64,23 @@ impl<'a> AndersenAnalysis<'a> {
             .collect()
     }
 
-    fn analyze_bb(&mut self, bb: &BasicBlock, solver: &mut CubicSolver<Cell, Place>) {
+    fn analyze_bb(
+        &mut self,
+        bb: &BasicBlock,
+        solver: &mut CubicSolver<Cell, Place>,
+        store: &InstStore,
+    ) {
         for inst in bb.iter() {
-            self.analyze_inst(inst, solver);
+            self.analyze_inst(store.get(*inst), solver, store);
         }
     }
 
-    fn analyze_inst(&mut self, inst: &Instruction, solver: &mut CubicSolver<Cell, Place>) {
+    fn analyze_inst(
+        &mut self,
+        inst: &Instruction,
+        solver: &mut CubicSolver<Cell, Place>,
+        store: &InstStore,
+    ) {
         match &inst.data {
             crate::inst::InstructionType::Arg(_) => {
                 solver.includes(Cell::Volatile, Place::Register(inst.id))
@@ -90,7 +100,7 @@ impl<'a> AndersenAnalysis<'a> {
                 // every thing that could be on the address [addr] could be in the register
                 solver.add_edge(Place::Memory(*addr), Place::Register(inst.id));
 
-                for mem in self.get_memory() {
+                for mem in self.get_memory(store) {
                     solver.includes_implies(
                         Cell::Alloc(mem),
                         Place::Memory(*addr),
@@ -103,7 +113,7 @@ impl<'a> AndersenAnalysis<'a> {
             // could be in the in the memory on the address [addr]
             crate::inst::InstructionType::St(RegReg(addr, reg)) => {
                 solver.add_edge(Place::Register(*reg), Place::Memory(*addr));
-                for mem in self.get_memory() {
+                for mem in self.get_memory(store) {
                     solver.includes_implies(
                         Cell::Alloc(mem),
                         Place::Memory(*addr),
@@ -118,7 +128,7 @@ impl<'a> AndersenAnalysis<'a> {
         }
     }
 
-    fn get_memory(&mut self) -> Vec<Register> {
+    fn get_memory(&mut self, store: &InstStore) -> Vec<Register> {
         if let Some(memory) = &self.memory {
             memory.clone()
         } else {
@@ -127,21 +137,21 @@ impl<'a> AndersenAnalysis<'a> {
                 .blocks
                 .iter()
                 .map(|bb| {
-                    bb.iter().filter(|inst| match inst.data {
+                    bb.iter().filter(|inst| match store.get(**inst).data {
                         crate::inst::InstructionType::St(_) => true,
                         crate::inst::InstructionType::Ld(_) => true,
                         _ => false,
                     })
                 })
                 .flatten()
-                .map(|inst| match inst.data {
+                .map(|inst| match store.get(*inst).data {
                     crate::inst::InstructionType::St(RegReg(addr, _)) => addr,
                     crate::inst::InstructionType::Ld(Reg(addr)) => addr,
                     _ => unreachable!(),
                 })
                 .collect();
             self.memory = Some(memory.into_iter().collect());
-            self.get_memory()
+            self.get_memory(store)
         }
     }
 }

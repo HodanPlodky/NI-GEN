@@ -1,11 +1,12 @@
 use crate::{
     inst::InstructionType,
-    ir::{BBIndex, BasicBlock, Function, InstUUID, Instruction, IrProgram, RegType, Register},
+    ir::{BBIndex, BasicBlock, Function, InstStore, InstUUID, IrProgram, RegType, Register},
     optimalizations::death_store_load::remove_store_load,
 };
 
 #[derive(Debug)]
 pub struct IrBuilder {
+    pub store: InstStore,
     global: Function,
     prog: IrProgram,
 }
@@ -13,6 +14,7 @@ pub struct IrBuilder {
 impl Default for IrBuilder {
     fn default() -> Self {
         Self {
+            store: InstStore::default(),
             global: Function {
                 name: "global".to_string(),
                 arg_count: 0,
@@ -37,7 +39,7 @@ pub enum IrBuilderError {
 
 impl IrBuilder {
     fn get_id(&self) -> InstUUID {
-        (true, 0, self.global.blocks[0].len())
+        self.store.get_next_id()
     }
 
     pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {
@@ -49,9 +51,8 @@ impl IrBuilder {
     }
 
     pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
-        let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, inst);
-        self.global.blocks[0].push(inst);
+        let id = self.store.add_inst(inst, reg_type);
+        self.global.blocks[0].push(id);
         id
     }
 
@@ -63,20 +64,23 @@ impl IrBuilder {
     pub fn create(self) -> IrProgram {
         let mut tmp = self;
         tmp.prog.glob = std::mem::take(&mut tmp.global);
+        tmp.prog.store = tmp.store;
         tmp.prog
     }
 }
 
-pub struct FunctionBuilder {
+pub struct FunctionBuilder<'a> {
+    pub store: &'a mut InstStore,
     arg_count: u64,
     ret_type: RegType,
     act_bb: BBIndex,
     pub blocks: Vec<BasicBlock>,
 }
 
-impl FunctionBuilder {
-    pub fn new(arg_count: u64, ret_type: RegType) -> Self {
+impl<'a> FunctionBuilder<'a> {
+    pub fn new(arg_count: u64, ret_type: RegType, store: &'a mut InstStore) -> Self {
         Self {
+            store,
             arg_count,
             ret_type,
             act_bb: 0,
@@ -85,7 +89,7 @@ impl FunctionBuilder {
     }
 
     pub fn get_id(&self) -> InstUUID {
-        (false, self.act_bb, self.blocks[self.act_bb].len())
+        self.store.get_next_id()
     }
 
     pub fn create_bb(&mut self) -> BBIndex {
@@ -94,9 +98,8 @@ impl FunctionBuilder {
     }
 
     pub fn add(&mut self, inst: InstructionType, reg_type: RegType) -> Register {
-        let id = self.get_id();
-        let inst = Instruction::new(id, reg_type, inst);
-        self.blocks[self.act_bb].push(inst);
+        let id = self.store.add_inst(inst, reg_type);
+        self.blocks[self.act_bb].push(id);
         id
     }
 
@@ -116,7 +119,7 @@ impl FunctionBuilder {
     }
 
     pub fn terminated(&self) -> bool {
-        self.blocks[self.act_bb].terminated()
+        self.blocks[self.act_bb].terminated(self.store)
     }
 
     pub fn create(self, name: &str) -> Function {
@@ -127,7 +130,7 @@ impl FunctionBuilder {
             blocks: self.blocks,
         };
 
-        while remove_store_load(&mut result) {}
+        while remove_store_load(&mut result, self.store) {}
 
         result
     }
@@ -147,12 +150,13 @@ mod tests {
         let mut builder = IrBuilder::default();
         let reg: Register = builder.add(I::Ldi(ImmI(5)), RegType::Int);
         builder.add(I::Ret(Terminator), RegType::Void);
-        let mut fn_b = FunctionBuilder::new(0, RegType::Void);
+        let mut fn_b = FunctionBuilder::new(0, RegType::Void, &mut builder.store);
         let bi = fn_b.create_bb();
         fn_b.add(I::Jmp(TerminatorJump(bi)), RegType::Void);
         fn_b.set_bb(bi);
         fn_b.add(I::Print(Reg(reg)), RegType::Void);
         fn_b.add(I::Ret(Terminator), RegType::Void);
-        builder.add_fn(fn_b.create("main")).unwrap();
+        let main_fn = fn_b.create("main");
+        builder.add_fn(main_fn).unwrap();
     }
 }

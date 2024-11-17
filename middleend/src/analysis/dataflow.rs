@@ -1,4 +1,4 @@
-use crate::ir::{BasicBlock, Function, InstUUID};
+use crate::ir::{BasicBlock, Function, InstStore, InstUUID, Instruction};
 
 use super::lattice::{FunctionLattice, Lattice};
 
@@ -6,6 +6,8 @@ pub enum DataflowType {
     Forwards,
     Backwards,
 }
+
+pub type InstPos = (bool, usize, usize);
 
 /// Represantation of the program lattice will be
 /// just vector of vectors of lattice elements
@@ -25,33 +27,34 @@ where
     fn direction(&self) -> DataflowType;
 
     /// implementation of constrains
-    fn transfer_fun(&self, inst: InstUUID, state: A) -> A;
+    fn transfer_fun(&self, inst: &Instruction, pos: InstPos, state: A) -> A;
 
-    fn before(&self, inst: InstUUID) -> Vec<InstUUID> {
-        let (g, bb_index, insts_index) = inst;
+    // returns possitions
+    fn before(&self, inst: InstPos, store: &InstStore) -> Vec<InstPos> {
+        let (g, bb_index, inst_index) = inst;
         let func = self.function();
         match self.direction() {
-            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == insts_index => func
-                .blocks[bb_index]
-                .succ()
+            DataflowType::Backwards if func.blocks[bb_index].len() - 1 == inst_index => func.blocks
+                [bb_index]
+                .succ(store)
                 .into_iter()
                 .map(|x| (false, x, 0))
                 .collect(),
             DataflowType::Backwards => {
-                vec![(g, bb_index, insts_index + 1)]
+                vec![(g, bb_index, inst_index + 1)]
             }
-            DataflowType::Forwards if insts_index == 0 => func.blocks[bb_index]
+            DataflowType::Forwards if inst_index == 0 => func.blocks[bb_index]
                 .pred()
                 .into_iter()
                 .map(|x| (false, x, func.blocks[x].len() - 1))
                 .collect(),
-            DataflowType::Forwards => vec![(g, bb_index, insts_index - 1)],
+            DataflowType::Forwards => vec![(g, bb_index, inst_index - 1)],
         }
     }
 
-    fn join(&self, inst: InstUUID, state: &Vec<Vec<A>>) -> A {
+    fn join(&self, inst: InstPos, state: &Vec<Vec<A>>, store: &InstStore) -> A {
         let prev = self
-            .before(inst)
+            .before(inst, store)
             .into_iter()
             .map(|(_, bb, inst)| state[bb][inst].clone());
         prev.fold(self.inner_lattice().bot(), |acc, x| {
@@ -59,34 +62,43 @@ where
         })
     }
 
-    fn fun_block(&self, state: &Vec<Vec<A>>, block: &BasicBlock) -> Vec<A> {
-        (0..block.len())
-            .map(|x| (block[x].id.0, block[x].id.1, x))
-            .map(|inst| self.transfer_fun(inst, self.join(inst, state)))
+    fn fun_block(
+        &self,
+        state: &Vec<Vec<A>>,
+        block_idx: usize,
+        global: bool,
+        store: &InstStore,
+    ) -> Vec<A> {
+        (0..self.function()[block_idx].len())
+            .map(|x| (global, block_idx, x))
+            .map(|pos| {
+                self.transfer_fun(
+                    store.get(self.function()[block_idx][pos.2]),
+                    pos,
+                    self.join(pos, state, store),
+                )
+            })
             .collect()
-        //block
-        //.iter()
-        //.map(|inst| self.transfer_fun(inst.id, self.join(inst.id, state)))
-        //.collect()
     }
 
     /// function which aplies the tranfer function on
     /// every instuction in all basic blocks
-    fn fun(&self, state: Vec<Vec<A>>) -> Vec<Vec<A>> {
+    fn fun(&self, state: Vec<Vec<A>>, store: &InstStore) -> Vec<Vec<A>> {
         let func = self.function();
         func.blocks
             .iter()
-            .map(|block| self.fun_block(&state, block))
+            .enumerate()
+            .map(|(idx, _)| self.fun_block(&state, idx, false, store))
             .collect()
     }
 
     /// basic algorighm for finding fixed point
-    fn analyze(&mut self) -> Vec<Vec<A>> {
+    fn analyze(&mut self, store: &InstStore) -> Vec<Vec<A>> {
         let fun_lattice = FunctionLattice::<A>::new(self.function(), self.inner_lattice());
         let mut x = fun_lattice.bot();
         loop {
             let t = x.clone();
-            x = self.fun(x);
+            x = self.fun(x, store);
 
             if t == x {
                 break;

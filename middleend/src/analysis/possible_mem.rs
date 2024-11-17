@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     analysis::lattice::Lattice,
     inst::{InstructionType, RegReg, SymRegs},
-    ir::{Function, Register},
+    ir::{Function, InstStore, Instruction, Register},
 };
 
 use super::{
     const_mem::MemoryPlace,
-    dataflow::{DataFlowAnalysis, DataflowType},
+    dataflow::{DataFlowAnalysis, DataflowType, InstPos},
     lattice::{MapLattice, PowerSetLattice},
 };
 
@@ -16,32 +16,34 @@ type PossibleLattice = MapLattice<PowerSetLattice<Register>, MemoryPlace, HashSe
 
 pub struct PossibleMemAnalysis<'a> {
     function: &'a Function,
+    store: &'a InstStore,
     inner_lattice: PossibleLattice,
 }
 
 impl<'a> PossibleMemAnalysis<'a> {
-    pub fn new(function: &'a Function) -> Self {
-        let regs = HashSet::from_iter(function.get_used_regs().into_iter());
+    pub fn new(function: &'a Function, store: &'a InstStore) -> Self {
+        let regs = HashSet::from_iter(function.get_used_regs(store).into_iter());
         Self {
             function,
+            store,
             inner_lattice: MapLattice::new(
-                PossibleMemAnalysis::get_stores(function),
+                PossibleMemAnalysis::get_stores(function, store),
                 PowerSetLattice::new(regs),
             ),
         }
     }
 
-    fn get_stores(function: &'a Function) -> HashSet<MemoryPlace> {
+    fn get_stores(function: &'a Function, store: &InstStore) -> HashSet<MemoryPlace> {
         function
             .blocks
             .iter()
             .map(|x| {
                 x.iter()
-                    .filter(|x| match x.data {
+                    .filter(|x| match store.get(**x).data {
                         InstructionType::St(_) => true,
                         _ => false,
                     })
-                    .map(|x| match x.data {
+                    .map(|x| match store.get(*x).data {
                         InstructionType::St(RegReg(addr, _)) => MemoryPlace(addr),
                         _ => unreachable!(),
                     })
@@ -68,8 +70,8 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, HashSet<Register>>, PossibleL
     fn set_function(&mut self, func: &'a Function) {
         self.function = func;
         self.inner_lattice = MapLattice::new(
-            PossibleMemAnalysis::get_stores(func),
-            PowerSetLattice::new(func.get_used_regs().into_iter().collect()),
+            PossibleMemAnalysis::get_stores(func, self.store),
+            PowerSetLattice::new(func.get_used_regs(self.store).into_iter().collect()),
         );
     }
 
@@ -79,18 +81,16 @@ impl<'a> DataFlowAnalysis<'a, HashMap<MemoryPlace, HashSet<Register>>, PossibleL
 
     fn transfer_fun(
         &self,
-        inst: crate::ir::InstUUID,
+        inst: &Instruction,
+        pos: InstPos,
         state: HashMap<MemoryPlace, HashSet<Register>>,
     ) -> HashMap<MemoryPlace, HashSet<Register>> {
         use InstructionType::*;
-
-        let blocks = self.function();
-        let (_, bb_index, inst_index) = inst;
-        let inst = blocks[bb_index][inst_index].clone();
-        match inst.data {
+        let (_, bb_index, inst_index) = pos;
+        match &inst.data {
             St(RegReg(addr, reg)) => {
                 let mut state = state;
-                state.get_mut(&MemoryPlace(addr)).unwrap().insert(reg);
+                state.get_mut(&MemoryPlace(*addr)).unwrap().insert(*reg);
                 state
             }
             CallDirect(SymRegs(_, regs)) => {
