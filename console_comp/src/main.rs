@@ -15,7 +15,7 @@ use middleend::{
         live::LiveRegisterAnalysis,
         possible_mem::PossibleMemAnalysis,
     },
-    ir::Register,
+    ir::{InstUUID, Register},
     ir_interpret::run,
 };
 
@@ -33,7 +33,7 @@ fn printlive(result: HashMap<String, Vec<Vec<HashSet<Register>>>>) {
 }
 
 fn printconst(
-    result: HashMap<String, Vec<Vec<HashMap<MemoryPlace, FlatElem<(bool, usize, usize)>>>>>,
+    result: HashMap<String, Vec<Vec<HashMap<MemoryPlace, FlatElem<InstUUID>>>>>,
 ) {
     for (name, data) in result.iter() {
         println!("function {} {{", name);
@@ -100,7 +100,7 @@ fn main() {
         println!("{}", ir_prog);
         for (name, f) in ir_prog.funcs.iter() {
             let mut andersen = AndersenAnalysis::new(f);
-            let result = andersen.analyze();
+            let result = andersen.analyze(&ir_prog.store);
 
             println!("{name}:");
             for (reg, cell) in &result {
@@ -110,7 +110,7 @@ fn main() {
     } else if args[1] == "--const" {
         println!("{}", ir_prog);
         let const_analysis =
-            ConstantMemoryAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap());
+            ConstantMemoryAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap(), &ir_prog.store);
         let result = analyze_program(&ir_prog, const_analysis);
         printconst(result);
     } else if args[1] == "--pred" {
@@ -125,7 +125,7 @@ fn main() {
     } else if args[1] == "--poss" {
         println!("{}", ir_prog);
         let poss_analysis =
-            PossibleMemAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap());
+            PossibleMemAnalysis::new(&ir_prog.funcs.get(&"main".to_string()).unwrap(), &ir_prog.store);
         let result = analyze_program(&ir_prog, poss_analysis);
         printposs(result);
     }

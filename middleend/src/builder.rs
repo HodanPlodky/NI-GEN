@@ -64,6 +64,7 @@ impl IrBuilder {
     pub fn create(self) -> IrProgram {
         let mut tmp = self;
         tmp.prog.glob = std::mem::take(&mut tmp.global);
+        tmp.prog.store = tmp.store;
         tmp.prog
     }
 }
@@ -129,7 +130,7 @@ impl<'a> FunctionBuilder<'a> {
             blocks: self.blocks,
         };
 
-        while remove_store_load(&mut result, self.store) {}
+        //while remove_store_load(&mut result, self.store) {}
 
         result
     }

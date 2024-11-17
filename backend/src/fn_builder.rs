@@ -22,10 +22,11 @@ pub struct AsmFunctionBuilder<'a> {
 
     freetemp: Vec<usize>,
     ir_function: &'a Function,
+    store: &'a InstStore,
 }
 
 impl<'a> AsmFunctionBuilder<'a> {
-    pub fn new(name: String, ir_function: &'a Function, store: &InstStore) -> Self {
+    pub fn new(name: String, ir_function: &'a Function, store: &'a InstStore) -> Self {
         let mut lifeanalysis = LiveRegisterAnalysis::new(ir_function);
         Self {
             liveness: lifeanalysis.analyze(store),
@@ -36,6 +37,7 @@ impl<'a> AsmFunctionBuilder<'a> {
 
             freetemp: vec![29, 30, 31],
             ir_function,
+            store,
         }
     }
 
@@ -125,6 +127,7 @@ impl<'a> AsmFunctionBuilder<'a> {
         inst: AsmInstruction,
         block: &mut AsmBasicBlock,
         stacksize: Offset,
+        place: (usize, usize),
     ) -> Offset {
         let mut temp = vec![29, 30, 31];
         let mut inst = inst;
@@ -246,7 +249,7 @@ impl<'a> AsmFunctionBuilder<'a> {
 
         let mut stack_added = 0;
         if let AsmInstruction::Call(_, inst_id) = inst {
-            let used = reg_allocator.get_used(inst_id);
+            let used = reg_allocator.get_used(place);
             for reg in used {
                 before.push(AsmInstruction::Sd(
                     Rd::Arch(*reg),
@@ -271,16 +274,18 @@ impl<'a> AsmFunctionBuilder<'a> {
         reg_allocator: &dyn RegAllocator,
         block: AsmBasicBlock,
         stack_size: Offset,
+        bb_index: usize,
     ) -> (AsmBasicBlock, Offset) {
         let mut result = vec![];
         let mut biggest_stack = 0;
-        for inst in block {
+        for (idx, inst) in block.into_iter().enumerate() {
             biggest_stack = std::cmp::max(
                 AsmFunctionBuilder::patch_ir_register_inst(
                     reg_allocator,
                     inst,
                     &mut result,
                     stack_size,
+                    (bb_index, idx),
                 ),
                 biggest_stack,
             );
@@ -357,6 +362,7 @@ impl<'a> AsmFunctionBuilder<'a> {
             used_regs,
             self.stacksize as i64,
             self.liveness,
+            self.store,
         );
         let stacksize = reg_allocator.get_stacksize();
 
@@ -364,9 +370,14 @@ impl<'a> AsmFunctionBuilder<'a> {
         let mut biggest_addition = 0;
         let blocks: Vec<AsmBasicBlock> = blocks
             .into_iter()
-            .map(|x| {
-                let (block, addition) =
-                    AsmFunctionBuilder::patch_ir_registers(&reg_allocator, x, stacksize as i64);
+            .enumerate()
+            .map(|(bb_idx, bb)| {
+                let (block, addition) = AsmFunctionBuilder::patch_ir_registers(
+                    &reg_allocator,
+                    bb,
+                    stacksize as i64,
+                    bb_idx,
+                );
                 biggest_addition = std::cmp::max(addition, biggest_addition);
                 block
             })

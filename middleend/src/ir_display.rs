@@ -148,7 +148,7 @@ impl BasicBlock {
 }
 
 impl Function {
-    fn display(&self, f: &mut std::fmt::Formatter<'_>, store: &InstStore) -> std::fmt::Result {
+    pub fn display(&self, f: &mut std::fmt::Formatter<'_>, store: &InstStore) -> std::fmt::Result {
         writeln!(
             f,
             "function {}({}) : {} {{",
