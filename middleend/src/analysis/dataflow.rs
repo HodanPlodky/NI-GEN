@@ -1,4 +1,4 @@
-use crate::ir::{BasicBlock, Function, InstStore, InstUUID, Instruction};
+use crate::ir::{Function, InstStore, Instruction};
 
 use super::lattice::{FunctionLattice, Lattice};
 

@@ -273,11 +273,10 @@ impl<'a> AsmFunctionBuilder<'a> {
         reg_allocator: &dyn RegAllocator,
         block: AsmBasicBlock,
         stack_size: Offset,
-        bb_index: usize,
     ) -> (AsmBasicBlock, Offset) {
         let mut result = vec![];
         let mut biggest_stack = 0;
-        for (idx, inst) in block.into_iter().enumerate() {
+        for inst in block {
             biggest_stack = std::cmp::max(
                 AsmFunctionBuilder::patch_ir_register_inst(
                     reg_allocator,
@@ -368,14 +367,9 @@ impl<'a> AsmFunctionBuilder<'a> {
         let mut biggest_addition = 0;
         let blocks: Vec<AsmBasicBlock> = blocks
             .into_iter()
-            .enumerate()
-            .map(|(bb_idx, bb)| {
-                let (block, addition) = AsmFunctionBuilder::patch_ir_registers(
-                    &reg_allocator,
-                    bb,
-                    stacksize as i64,
-                    bb_idx,
-                );
+            .map(|bb| {
+                let (block, addition) =
+                    AsmFunctionBuilder::patch_ir_registers(&reg_allocator, bb, stacksize as i64);
                 biggest_addition = std::cmp::max(addition, biggest_addition);
                 block
             })

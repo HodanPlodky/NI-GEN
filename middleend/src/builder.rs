@@ -38,10 +38,6 @@ pub enum IrBuilderError {
 }
 
 impl IrBuilder {
-    fn get_id(&self) -> InstUUID {
-        self.store.get_next_id()
-    }
-
     pub fn add_fn(&mut self, func: Function) -> Result<(), IrBuilderError> {
         if self.prog.funcs.contains_key(&func.name.to_string()) {
             return Err(IrBuilderError::FuncRedef);

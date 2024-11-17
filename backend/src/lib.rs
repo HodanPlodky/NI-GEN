@@ -34,7 +34,7 @@ fn asm_func(function: Function, store: &InstStore) -> AsmFunction {
     function
         .blocks
         .iter()
-        .for_each(|x| asm_basicblock(x, &mut builder, &function, store));
+        .for_each(|x| asm_basicblock(x, &mut builder, store));
 
     let database = MockDatabase {};
     let peephole = PeepHoler::new(&database);
@@ -44,11 +44,10 @@ fn asm_func(function: Function, store: &InstStore) -> AsmFunction {
 fn asm_basicblock(
     block: &BasicBlock,
     builder: &mut AsmFunctionBuilder,
-    function: &Function,
     store: &InstStore,
 ) {
     builder.actual_bb = builder.create_block();
-    block.iter().zip(0..).for_each(|(x, inst_index)| {
-        basic_instruction_selection(store.get(*x), *x, builder, function, store)
+    block.iter().for_each(|x| {
+        basic_instruction_selection(store.get(*x), *x, builder, store)
     })
 }

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     analysis::cubicsolver::CubicSolver,
-    inst::{ImmIRegs, Reg, RegReg, RegRegImm, SymRegs},
+    inst::{Reg, RegReg, RegRegImm},
     ir::{BasicBlock, Function, InstStore, InstUUID, Instruction, Register},
 };
 

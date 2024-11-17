@@ -12,7 +12,6 @@ pub fn basic_instruction_selection(
     inst: &Instruction,
     place: middleend::ir::InstUUID,
     builder: &mut AsmFunctionBuilder,
-    function: &middleend::ir::Function,
     store: &InstStore,
 ) {
     use crate::insts::Rd::*;

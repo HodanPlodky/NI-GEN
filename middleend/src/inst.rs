@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{BBIndex, RegType, Register, Symbol};
+use crate::ir::{BBIndex, Register, Symbol};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InstructionType {

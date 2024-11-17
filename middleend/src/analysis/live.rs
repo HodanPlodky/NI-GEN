@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     inst::InstructionType,
-    ir::{Function, InstStore, InstUUID, Instruction, Register},
+    ir::{Function, Instruction, Register},
 };
 
 use super::{
