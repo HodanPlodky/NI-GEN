@@ -2,7 +2,7 @@
 #[allow(dead_code)]
 use std::collections::{HashMap, HashSet};
 
-use middleend::ir::{BasicBlock, InstStore};
+use middleend::ir::{BasicBlock, InstStore, InstUUID};
 
 use crate::insts::Rd;
 
@@ -17,7 +17,7 @@ type Place = (usize, usize);
 
 pub trait RegAllocator {
     fn get_location(&self, reg: middleend::ir::Register) -> ValueCell;
-    fn get_used(&self, place: Place) -> &Vec<usize>;
+    fn get_used(&self, place: InstUUID) -> &Vec<usize>;
     fn get_stacksize(&self) -> usize;
 }
 
@@ -74,7 +74,7 @@ impl RegAllocator for NaiveAllocator {
         self.registers[&reg]
     }
 
-    fn get_used(&self, _inst: Place) -> &Vec<usize> {
+    fn get_used(&self, _inst: InstUUID) -> &Vec<usize> {
         todo!()
     }
 
@@ -91,7 +91,7 @@ pub struct LinearAllocator<'a> {
     used_register: Vec<usize>,
     registers: HashMap<middleend::ir::Register, ValueCell>,
     release: Vec<Vec<Vec<middleend::ir::Register>>>,
-    used: Vec<Vec<Vec<usize>>>,
+    used: HashMap<usize, Vec<usize>>,
     used_ir: HashSet<Rd>,
     stacksize: i64,
     store: &'a InstStore,
@@ -115,11 +115,7 @@ impl<'a> LinearAllocator<'a> {
                 .iter()
                 .map(|x| x.iter().map(|_| vec![]).collect())
                 .collect(),
-            used: function
-                .blocks
-                .iter()
-                .map(|x| x.iter().map(|_| vec![]).collect())
-                .collect(),
+            used: HashMap::default(),
             used_ir,
             stacksize,
             store,
@@ -139,14 +135,10 @@ impl<'a> LinearAllocator<'a> {
                                 .insert(inst_id, ValueCell::Value(self.stacksize));
                             self.stacksize += size;
                         }
-                        _ => self.allocate_reg(
-                            inst_id,
-                            (bb_index, inst_index),
-                            &fun.blocks,
-                        ),
+                        _ => self.allocate_reg(inst_id, (bb_index, inst_index), &fun.blocks),
                     }
                 }
-                self.used[bb_index][inst_index] = self.used_register.clone();
+                self.used.insert(inst_id.val(), self.used_register.clone());
                 self.release((bb_index, inst_index));
             }
         }
@@ -214,9 +206,8 @@ impl RegAllocator for LinearAllocator<'_> {
         self.registers[&reg]
     }
 
-    fn get_used(&self, place: Place) -> &Vec<usize> {
-        let (bb_index, inst_index) = place;
-        &self.used[bb_index][inst_index]
+    fn get_used(&self, inst: InstUUID) -> &Vec<usize> {
+        &self.used[&inst.val()]
     }
 
     fn get_stacksize(&self) -> usize {

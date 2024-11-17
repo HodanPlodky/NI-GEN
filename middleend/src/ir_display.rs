@@ -83,7 +83,7 @@ impl Display for InstructionType {
                 sym,
                 regs.into_iter()
                     .map(|x| reg_view(*x))
-                    .fold("".to_string(), |acc, x| acc + x.as_str())
+                    .fold("".to_string(), |acc, x| acc + " " + x.as_str()) + " "
             ),
             InstructionType::Arg(ImmI(index)) => write!(f, "arg {}", index),
             InstructionType::Ret(_) => write!(f, "ret"),

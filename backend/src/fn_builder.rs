@@ -127,7 +127,6 @@ impl<'a> AsmFunctionBuilder<'a> {
         inst: AsmInstruction,
         block: &mut AsmBasicBlock,
         stacksize: Offset,
-        place: (usize, usize),
     ) -> Offset {
         let mut temp = vec![29, 30, 31];
         let mut inst = inst;
@@ -249,7 +248,7 @@ impl<'a> AsmFunctionBuilder<'a> {
 
         let mut stack_added = 0;
         if let AsmInstruction::Call(_, inst_id) = inst {
-            let used = reg_allocator.get_used(place);
+            let used = reg_allocator.get_used(inst_id);
             for reg in used {
                 before.push(AsmInstruction::Sd(
                     Rd::Arch(*reg),
@@ -285,7 +284,6 @@ impl<'a> AsmFunctionBuilder<'a> {
                     inst,
                     &mut result,
                     stack_size,
-                    (bb_index, idx),
                 ),
                 biggest_stack,
             );
